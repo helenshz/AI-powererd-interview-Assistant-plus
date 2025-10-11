@@ -123,7 +123,7 @@ flowchart TD
 
 ### 1. Clone the Repository
 bash
-git clone https://github.com/your-org/ai-interview-copilot.git
+git clone https://github.com/Vijaysingh1621/AI-powererd-interview-Assistant.git
 cd ai-interview-copilot
 
 
@@ -217,5 +217,11 @@ MIT License. See [LICENSE](./LICENSE) for details.
 ---
 
 ## Contact
+Author: Vijay Singh
+📧 Email: itisvijaysingh@gmail.com
+
+🔗 LinkedIn: https://www.linkedin.com/in/vijay-singh-b25483288/
+
+🔗 Repo: https://github.com/Vijaysingh1621/AI-powererd-interview-Assistant.git
 
 For support, feature requests, or enterprise solutions, please contact the maintainers or open an issue on GitHub.
