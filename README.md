@@ -22,6 +22,35 @@
 
 ---
 
+## Features
+
+### 🎙 Real-Time Audio Transcription
+- *Deepgram Integration:* Captures and transcribes interviewer/system audio in real time using advanced speech recognition.
+- *Screen Sharing Preview:* Visual feedback for active screen/audio capture, with robust error handling and fallback logic.
+- *Speaker Labeling:* Only "Interviewer" audio is transcribed and displayed, ensuring clarity and focus.
+
+### 🤖 AI Reasoning & Response
+- *Groq LLM Integration:* Utilizes Groq's ultra-fast, high-accuracy LLMs (Llama 3) for instant reasoning, explanations, and follow-up questions.
+- *Intelligent Routing:* The system first checks if the LLM can answer from its own knowledge. If not, it automatically triggers RAG agents to fetch relevant context from documents, web, or company knowledge bases.
+- *Progressive Enhancement:* Users receive immediate AI responses, with additional sources and citations appended as soon as RAG completes, minimizing wait time.
+
+### 📚 Retrieval-Augmented Generation (RAG)
+- *Contextual Search:* When the LLM needs more information, RAG agents search internal documents, PDFs, and web sources to provide accurate, context-rich answers.
+- *Citations & Sources:* All RAG-based responses include clear, structured citations for transparency and auditability.
+
+### 📝 Minimal, Professional UI
+- *Clean Design:* No gradients, cards, or unnecessary UI elements—just a focused, distraction-free workspace.
+- *Chat-Style Transcription:* All interviewer speech is displayed in a chat interface, with clear timestamps and speaker labels.
+- *Screen Sharing:* Prominent, resizable preview for screen/audio capture, with live status indicators.
+
+### 🛡 Robustness & Security
+- *Error Handling:* Graceful fallbacks for audio/video issues, API errors, and permission denials.
+- *Environment Variables:* All API keys and sensitive configs are managed via .env files.
+- *No Candidate Audio:* Only interviewer/system audio is captured, ensuring privacy and compliance.
+
+---
+
+
 ## 🚀 BlitzQ - Production SaaS Built on This Prototype
 
 Building on this open-source prototype, I created *BlitzQ* - a comprehensive SaaS platform that takes interview preparation to the next level.
@@ -59,151 +88,26 @@ Your intelligent AI-powered interview copilot that provides real-time answers, h
 
 ---
 
-## Features
-
-### 🎙 Real-Time Audio Transcription
-- *Deepgram Integration:* Captures and transcribes interviewer/system audio in real time using advanced speech recognition.
-- *Screen Sharing Preview:* Visual feedback for active screen/audio capture, with robust error handling and fallback logic.
-- *Speaker Labeling:* Only "Interviewer" audio is transcribed and displayed, ensuring clarity and focus.
-
-### 🤖 AI Reasoning & Response
-- *Groq LLM Integration:* Utilizes Groq's ultra-fast, high-accuracy LLMs (Llama 3) for instant reasoning, explanations, and follow-up questions.
-- *Intelligent Routing:* The system first checks if the LLM can answer from its own knowledge. If not, it automatically triggers RAG agents to fetch relevant context from documents, web, or company knowledge bases.
-- *Progressive Enhancement:* Users receive immediate AI responses, with additional sources and citations appended as soon as RAG completes, minimizing wait time.
-
-### 📚 Retrieval-Augmented Generation (RAG)
-- *Contextual Search:* When the LLM needs more information, RAG agents search internal documents, PDFs, and web sources to provide accurate, context-rich answers.
-- *Citations & Sources:* All RAG-based responses include clear, structured citations for transparency and auditability.
-
-### 📝 Minimal, Professional UI
-- *Clean Design:* No gradients, cards, or unnecessary UI elements—just a focused, distraction-free workspace.
-- *Chat-Style Transcription:* All interviewer speech is displayed in a chat interface, with clear timestamps and speaker labels.
-- *Screen Sharing:* Prominent, resizable preview for screen/audio capture, with live status indicators.
-
-### 🛡 Robustness & Security
-- *Error Handling:* Graceful fallbacks for audio/video issues, API errors, and permission denials.
-- *Environment Variables:* All API keys and sensitive configs are managed via .env files.
-- *No Candidate Audio:* Only interviewer/system audio is captured, ensuring privacy and compliance.
-
----
 
 ## System Flowchart
 
-mermaid
+
+```mermaid
 flowchart TD
-    A[🎬 Start Interview Session] --> B{🎙 Grant Audio/Screen Permission}
-    B -->|✅ Permission Granted| C[📡 WebRTC Capture: Screen + Audio]
-    B -->|❌ Permission Denied| B1[⚠ Show Permission Error]
-    
-    C --> D[🎤 Deepgram Nova-2 Real-time Transcription]
-    D --> E[🔍 Speaker Detection & Filtering]
-    E --> F[💬 Display in Chat Interface]
-    
-    F --> G[🧠 AI Knowledge Assessment]
-    G --> H{🤔 Does AI Know Answer?}
-    
-    H -->|✅ KNOWN| I[⚡ Direct Groq LLM Response]
-    H -->|❓ NEED_CONTEXT| J[🔍 RAG Pipeline Activation]
-    
-    J --> K[📝 Extract Question from Transcript]
-    K --> L[🔄 Parallel Search Execution]
-    
-    L --> M[📄 PDF Vector Search<br/>Pinecone + Gemini Embeddings]
-    L --> N[🌐 Web Search<br/>Tavily API]
-    
-    M --> O[🔗 Context Fusion & Ranking]
-    N --> O
-    
-    O --> P[🤖 Enhanced Groq Response with Context]
-    
-    I --> Q[📡 Stream Response to UI]
-    P --> Q
-    
-    Q --> R[📚 Show Citations & Sources]
-    R --> S[💾 Save to Interview History]
-    
-    S --> T[🔄 Continue Interview Loop]
-    T --> F
-    
-    style H fill:#f9f,stroke:#333,stroke-width:3px
-    style I fill:#bfb,stroke:#333,stroke-width:2px
-    style J fill:#bbf,stroke:#333,stroke-width:2px
-    style L fill:#fbb,stroke:#333,stroke-width:2px
-
+    A[Start Interview Session] --> B{Screen/Audio Capture}
+    B -->|Grant Permission| C[Deepgram Transcription]
+    C --> D[Transcript to Copilot UI]
+    D --> E{AI Knowledge Check}
+    E -- Known --> F[Groq LLM Immediate Response]
+    E -- Need Context --> G[RAG Agents: Docs/Web Search]
+    G --> H[Contextual Prompt to Groq LLM]
+    F & H --> I[Streamed Response to User]
+    H --> J[Show Citations/Sources]
+    I --> K[End/Export Transcript]
+```
 
 ---
 
-## Architecture Diagram
-
-mermaid
-flowchart TB
-    subgraph "Frontend Layer"
-        A1[User Interface]
-        A2[WebRTC Audio/Video Capture]
-        A3[Real-time Transcription Display]
-        A4[AI Response Streaming]
-    end
-    
-    subgraph "Audio Processing"
-        B1[Deepgram Nova-2]
-        B2[Speaker Detection]
-        B3[Transcript Management]
-    end
-    
-    subgraph "AI Intelligence Layer"
-        C1[Knowledge Assessment]
-        C2{Has Knowledge?}
-        C3[Direct Groq Response]
-        C4[RAG Orchestrator]
-    end
-    
-    subgraph "RAG Pipeline"
-        D1[Question Extraction]
-        D2[PDF Vector Search<br/>Pinecone + Gemini]
-        D3[Web Search<br/>Tavily API]
-        D4[Context Fusion]
-        D5[Enhanced Groq Response]
-    end
-    
-    subgraph "External Services"
-        E1[Groq LLM<br/>Llama 3.1 70B]
-        E2[Pinecone Vector DB]
-        E3[Gemini Embeddings]
-        E4[Tavily Web API]
-    end
-
-    A1 --> A2
-    A2 --> B1
-    B1 --> B2
-    B2 --> B3
-    B3 --> A3
-    A3 --> C1
-    C1 --> C2
-    
-    C2 -->|Yes| C3
-    C2 -->|No| C4
-    
-    C3 --> E1
-    E1 --> A4
-    
-    C4 --> D1
-    D1 --> D2 & D3
-    D2 --> E2 & E3
-    D3 --> E4
-    D2 --> D4
-    D3 --> D4
-    D4 --> D5
-    D5 --> E1
-    E1 --> A4
-
-    style C2 fill:#f9f,stroke:#333,stroke-width:2px
-    style E1 fill:#bbf,stroke:#333,stroke-width:2px
-    style E2 fill:#bfb,stroke:#333,stroke-width:2px
-    style E3 fill:#bfb,stroke:#333,stroke-width:2px
-    style E4 fill:#fbf,stroke:#333,stroke-width:2px
-
-
----
 
 ## Architecture
 
