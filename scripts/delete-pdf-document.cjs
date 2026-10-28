@@ -5,7 +5,7 @@ const { Pinecone } = require('@pinecone-database/pinecone');
 const env = require('dotenv').parse(fs.readFileSync('.env.local'));
 async function main() {
   const filename = process.argv[2];
-  if (!filename || !filename.toLowerCase().endsWith('.pdf')) throw new Error('An exact PDF filename is required');
+  if (!filename || !/\.(pdf|md|markdown|txt)$/i.test(filename)) throw new Error('An exact supported document filename is required');
   const indexName = env.PINECONE_INDEX_NAME || 'interview-docs';
   const index = new Pinecone({ apiKey: env.PINECONE_API_KEY }).index(indexName);
   const records = [];
@@ -28,11 +28,16 @@ async function main() {
   for (let offset = 0; offset < ids.length; offset += 100) {
     await index.deleteMany(ids.slice(offset, offset + 100));
   }
-  // Exact-ID reads verify the requested records, without touching any other document.
-  const remaining = [];
-  for (let offset = 0; offset < ids.length; offset += 100) {
-    const fetched = await index.fetch(ids.slice(offset, offset + 100));
-    remaining.push(...Object.keys(fetched.records || {}));
+  // Pinecone deletion is eventually consistent; allow a bounded verification window.
+  let remaining = ids;
+  for (let attempt = 0; attempt < 5 && remaining.length; attempt++) {
+    if (attempt) await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+    const pending = [];
+    for (let offset = 0; offset < ids.length; offset += 100) {
+      const fetched = await index.fetch(ids.slice(offset, offset + 100));
+      pending.push(...Object.keys(fetched.records || {}));
+    }
+    remaining = pending;
   }
   console.log(JSON.stringify({ filename, deletedChunks: ids.length, remainingChunks: remaining.length,
     backup: path.relative(process.cwd(), backupPath) }));
