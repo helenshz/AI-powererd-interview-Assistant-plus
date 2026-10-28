@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { isSupportedDocument } from "@/lib/document-formats";
 
 export function PDFManager() {
   const [uploading, setUploading] = useState(false);
@@ -13,13 +14,13 @@ export function PDFManager() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (file.type !== "application/pdf") {
-      setUploadStatus("❌ Please select a PDF file");
+    if (!isSupportedDocument(file.name)) {
+      setUploadStatus("❌ Please select a PDF, Markdown, or TXT file");
       return;
     }
 
     setUploading(true);
-    setUploadStatus("📄 Uploading PDF...");
+    setUploadStatus("📄 Uploading document...");
 
     try {
       const formData = new FormData();
@@ -34,7 +35,7 @@ export function PDFManager() {
 
       if (response.ok) {
         setUploadStatus(`✅ ${result.filename} uploaded successfully!`);
-        setUploadedFiles(prev => [...prev, result.filename]);
+        setUploadedFiles(prev => Array.from(new Set([...prev, result.filename])));
         
         // Clear status after 3 seconds
         setTimeout(() => setUploadStatus(""), 3000);
@@ -77,8 +78,8 @@ export function PDFManager() {
   return (
     <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
       <div className="flex items-center justify-between mb-3">
-        <Label className="text-green-800 font-medium">📚 PDF Knowledge Base</Label>
-        <span className="text-xs text-gray-500">Upload PDFs for AI to reference</span>
+        <Label className="text-green-800 font-medium">📚 Document Knowledge Base</Label>
+        <span className="text-xs text-gray-500">PDF, Markdown, TXT · up to 10 MB</span>
       </div>
       
       <div className="space-y-3">
@@ -86,7 +87,7 @@ export function PDFManager() {
         <div className="flex items-center gap-2">
           <input
             type="file"
-            accept=".pdf"
+            accept=".pdf,.md,.markdown,.txt"
             onChange={handleFileUpload}
             disabled={uploading}
             className="hidden"
@@ -100,7 +101,7 @@ export function PDFManager() {
                 : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
               }`}
           >
-            {uploading ? "⏳ Uploading..." : "📄 Upload PDF"}
+            {uploading ? "⏳ Uploading..." : "📄 Upload Document"}
           </Label>
         </div>
 
@@ -131,7 +132,7 @@ export function PDFManager() {
 
         {/* Info */}
         <div className="text-xs text-gray-500">
-          💡 Uploaded PDFs will be used to provide context-aware responses during interviews.
+          💡 Uploaded documents will be used to provide context-aware responses during interviews.
         </div>
       </div>
     </div>

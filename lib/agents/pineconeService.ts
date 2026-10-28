@@ -288,7 +288,7 @@ class PineconeService {
         content: match.metadata?.content as string || '',
         score: match.score || 0,
         metadata: match.metadata,
-        source: `PDF: ${match.metadata?.filename || 'Unknown'}`,
+        source: `Document: ${match.metadata?.filename || 'Unknown'}`,
         page: typeof match.metadata?.page === 'number' ? match.metadata.page : undefined,
         startPage: typeof match.metadata?.startPage === 'number' ? match.metadata.startPage : undefined,
         endPage: typeof match.metadata?.endPage === 'number' ? match.metadata.endPage : undefined

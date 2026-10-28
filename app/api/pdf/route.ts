@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Pinecone } from '@pinecone-database/pinecone';
 import { generateTextEmbedding } from '@/lib/gemini-embeddings';
 import { documentVectorId } from '@/lib/document-vector-id';
-import { safePdfParse } from '../../../lib/safePdfParse';
+import { extractDocumentText, DocumentInputError, documentExtension, isSupportedDocument } from '@/lib/document-text';
 
 // Use Node.js runtime for PDF processing
 export const runtime = 'nodejs';
@@ -17,14 +17,8 @@ async function uploadPDFToVectorDB(file: File): Promise<boolean> {
       apiKey: process.env.PINECONE_API_KEY,
     });
 
-    // Parse PDF
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const pdfData = await safePdfParse(buffer);
-
-    // Split into chunks
-    if (!pdfData.text?.trim()) throw new Error('PDF 中没有可提取的文字，扫描版 PDF 需要先进行 OCR。');
-    const chunks = splitIntoChunks(pdfData.text, 1500);
+    const text = await extractDocumentText(file);
+    const chunks = splitIntoChunks(text, 1500);
     
     // Generate embeddings and store
     const indexName = process.env.PINECONE_INDEX_NAME || 'interview-docs';
@@ -42,7 +36,8 @@ async function uploadPDFToVectorDB(file: File): Promise<boolean> {
           content: chunks[i],
           filename: file.name,
           chunkIndex: i,
-          title: file.name.replace('.pdf', ''),
+          title: file.name.replace(/\.[^.]+$/, ''),
+          documentType: documentExtension(file.name),
           uploadDate: new Date().toISOString(),
           contentType: 'text'
         }
@@ -107,21 +102,21 @@ async function deletePDFFromVectorDB(filename: string): Promise<boolean> {
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
-    const file = formData.get("file") as File;
+    const file = formData.get("file");
 
-    if (!file) {
+    if (!file || typeof file === 'string') {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    if (file.type !== "application/pdf") {
-      return NextResponse.json({ error: "Only PDF files are allowed" }, { status: 400 });
+    if (!isSupportedDocument(file.name)) {
+      return NextResponse.json({ error: "Supported files: PDF, Markdown (.md/.markdown), and TXT." }, { status: 400 });
     }
 
     const success = await uploadPDFToVectorDB(file);
 
     if (success) {
       return NextResponse.json({ 
-        message: "PDF uploaded successfully",
+        message: "Document uploaded successfully",
         filename: file.name,
         size: file.size
       });
@@ -130,6 +125,9 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error("PDF upload error:", error);
+    if (error instanceof DocumentInputError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     const message = error instanceof Error ? error.message : '';
     const safeMessage = /^(Gemini |请配置|无法连接 Gemini|PDF 中)/.test(message)
       ? message

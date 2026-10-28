@@ -536,7 +536,7 @@ export function Copilot({ addInSavedData }: CopilotProps) {
                           <div className="flex items-center gap-2">
                             {citation.sourceType === 'pdf' ? (
                               <span className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
-                                📄 PDF
+                                📄 {citation.filename?.toLowerCase().endsWith('.pdf') ? 'PDF' : /\.(md|markdown)$/i.test(citation.filename || '') ? 'Markdown' : 'Text'}
                               </span>
                             ) : (
                               <span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
@@ -609,7 +609,7 @@ export function Copilot({ addInSavedData }: CopilotProps) {
               <div className="mt-4 pt-3 border-t border-yellow-200">
                 <div className="text-xs text-yellow-700 flex items-center gap-4">
                   <span>
-                    📄 PDF Sources: {citations.filter(c => c.sourceType === 'pdf').length}
+                    📄 Document Sources: {citations.filter(c => c.sourceType === 'pdf').length}
                   </span>
                   <span>
                     🌐 Web Sources: {citations.filter(c => c.sourceType === 'web').length}
