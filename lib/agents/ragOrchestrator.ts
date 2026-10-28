@@ -4,6 +4,7 @@ import { pineconeService, SearchResult } from './pineconeService';
 import { webSearchAgent, WebSearchResult } from './simpleWebSearchAgent';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { isSelfIntroduction, pdfSearchQuery, introductionRelevance } from '../interview-query';
+import { preferOriginalPassage } from '../pdf-source-language';
 
 export interface RAGContext {
   pdfResults: SearchResult[];
@@ -53,7 +54,7 @@ class RAGOrchestrator {
     }
   }
 
-  async processTranscript(transcript: string, background?: string): Promise<RAGResponse> {
+  async processTranscript(transcript: string, background?: string, responseLanguage?: string): Promise<RAGResponse> {
     try {
       console.log('🔍 Extracting question from transcript...');
       
@@ -116,7 +117,7 @@ class RAGOrchestrator {
 
       // Step 2: Search PDF documents (parallel) - with error handling
       console.log('🔍 Starting PDF search with query:', searchQuery);
-      const pdfSearchPromise = this.searchPDFs(searchQuery)
+      const pdfSearchPromise = this.searchPDFs(searchQuery, responseLanguage)
         .catch(error => {
           console.error('PDF search error:', error);
           return [];
@@ -182,16 +183,24 @@ class RAGOrchestrator {
     }
   }
 
-  private async searchPDFs(question: string): Promise<SearchResult[]> {
+  private async searchPDFs(question: string, responseLanguage?: string): Promise<SearchResult[]> {
     try {
       console.log('🔍 Searching PDFs with question:', question);
       const personal = isSelfIntroduction(question);
-      const results = await pineconeService.searchSimilarContent(pdfSearchQuery(question), personal ? 20 : 6);
-      if (personal) {
-        results.sort((a, b) => (b.score + introductionRelevance(b.content)) - (a.score + introductionRelevance(a.content)));
-      }
+      const results = await pineconeService.searchSimilarContent(pdfSearchQuery(question), personal || responseLanguage ? 20 : 6);
+      const bestScore = Math.max(0, ...results.map(result => result.score));
+      const candidates = results.map(result => {
+        const original = preferOriginalPassage(result.content, responseLanguage);
+        return {
+          result: original.matched ? { ...result, content: original.content,
+            metadata: { ...result.metadata, sourceLanguage: responseLanguage } } : result,
+          rank: result.score + (personal ? introductionRelevance(result.content) : 0) +
+            (original.matched && result.score >= bestScore - 0.12 ? 0.12 : 0),
+        };
+      });
+      candidates.sort((a, b) => b.rank - a.rank);
       console.log(`📄 PDF search completed: ${results.length} results found`);
-      return results.slice(0, 4);
+      return candidates.slice(0, 4).map(candidate => candidate.result);
     } catch (error) {
       console.error('Error searching PDFs:', error);
       
@@ -315,7 +324,8 @@ class RAGOrchestrator {
       let contextInfo = '';
       if (isPdf) {
         const pageInfo = this.formatPageInfo(result);
-        contextInfo = `${sourceType} ${pageInfo ? `(${pageInfo}) ` : ''}${content}`;
+        const sourceLanguage = (result as any).metadata?.sourceLanguage;
+        contextInfo = `${sourceType} ${sourceLanguage ? `[Original source language: ${sourceLanguage}] ` : ''}${pageInfo ? `(${pageInfo}) ` : ''}${content}`;
       } else {
         contextInfo = `${sourceType} ${content}`;
       }

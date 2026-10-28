@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import RecorderTranscriber from "@/components/recorder";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { FLAGS, HistoryData } from "@/lib/types";
+import { FLAGS, HistoryData, InterviewLanguage } from "@/lib/types";
 import { Switch } from "@/components/ui/switch";
 import { PDFManager } from "@/components/PDFManager";
 import { PDFModal } from "@/components/PDFModal";
@@ -136,6 +136,7 @@ export function Copilot({ addInSavedData }: CopilotProps) {
   const [transcribedText, setTranscribedText] = useState<string>("");
   const [flag, setFlag] = useState<FLAGS>(FLAGS.COPILOT);
   const [bg, setBg] = useState<string>("");
+  const [responseLanguage, setResponseLanguage] = useState<InterviewLanguage>("en");
   const [lastAddedText, setLastAddedText] = useState<string>("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [showChatView, setShowChatView] = useState<boolean>(true);
@@ -156,6 +157,7 @@ export function Copilot({ addInSavedData }: CopilotProps) {
     useGeminiCompletion({
       bg,
       flag,
+      responseLanguage,
     });
 
   const handleFlag = useCallback((checked: boolean) => {
@@ -368,6 +370,8 @@ export function Copilot({ addInSavedData }: CopilotProps) {
           <div className="grid gap-6 md:grid-cols-2">
           <div className="grid gap-1.5">
             <RecorderTranscriber
+              language={responseLanguage}
+              onLanguageChange={setResponseLanguage}
               addTextinTranscription={addTextinTranscription}
             />
             
@@ -518,7 +522,7 @@ export function Copilot({ addInSavedData }: CopilotProps) {
                       <span className="text-white text-xs">✓</span>
                     </div>
                     <h3 className="text-lg font-semibold text-gray-800">AI Response</h3>
-                    {flag === FLAGS.COPILOT && (
+                    {flag === FLAGS.COPILOT && citations.length > 0 && (
                       <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1">
                         🤖 RAG-powered
                       </span>

@@ -4,13 +4,15 @@ import { createClient, LiveTranscriptionEvents, LiveClient } from "@deepgram/sdk
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { transcriptionManager } from "@/lib/transcriptionManager";
+import type { InterviewLanguage } from "@/lib/types";
 
 interface RecorderTranscriberProps {
   addTextinTranscription: (text: string, speaker?: "user" | "system" | "external") => void;
+  language: InterviewLanguage;
+  onLanguageChange: (language: InterviewLanguage) => void;
 }
 
-export default function RecorderTranscriber({ addTextinTranscription }: RecorderTranscriberProps) {
-  const [language, setLanguage] = useState("en");
+export default function RecorderTranscriber({ addTextinTranscription, language, onLanguageChange }: RecorderTranscriberProps) {
   const [source, setSource] = useState("system");
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [connecting, setConnecting] = useState(false);
@@ -142,8 +144,8 @@ export default function RecorderTranscriber({ addTextinTranscription }: Recorder
             <option value="microphone">麦克风（自己说话测试）</option>
           </select>
         </label>
-        <label className="flex items-center gap-2">识别语言
-          <select className="border rounded p-2" value={language} disabled={!!stream || connecting} onChange={event => setLanguage(event.target.value)}>
+        <label className="flex items-center gap-2">识别 / 回答语言
+          <select className="border rounded p-2" value={language} disabled={!!stream || connecting} onChange={event => onLanguageChange(event.target.value as InterviewLanguage)}>
             <option value="en">English</option>
             <option value="ja">日本語（日语）</option>
             <option value="zh-CN">中文（普通话）</option>

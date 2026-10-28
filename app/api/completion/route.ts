@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 const MODEL = process.env.MODEL || "gemini-1.5-flash";
 
 export async function POST(req: Request) {
-  const { bg, flag, prompt: transcribe } = await req.json();
+  const { bg, flag, prompt: transcribe, responseLanguage = 'en' } = await req.json();
 
   if (flag === FLAGS.COPILOT) {
     // Step 1: Check if AI has knowledge about the question
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
       // AI has knowledge - respond immediately
       console.log('⚡ Responding with AI knowledge...');
       
-      const immediatePrompt = buildPrompt(bg, transcribe);
+      const immediatePrompt = buildPrompt(bg, transcribe, responseLanguage);
       
       let groqStream;
       try {
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
       
       try {
         const { ragOrchestrator } = await import('@/lib/agents/ragOrchestrator');
-        const ragData = await ragOrchestrator.processTranscript(transcribe, bg);
+        const ragData = await ragOrchestrator.processTranscript(transcribe, bg, responseLanguage);
         
         extractedQuestion = ragData.extractedQuestion;
         ragContext = ragData.context;
@@ -123,7 +123,7 @@ export async function POST(req: Request) {
         if (ragData.searchPerformed && ragContext.combinedContext?.trim()) {
           console.log('📚 Using RAG context for response...');
           
-          const ragPrompt = buildRAGPrompt(bg, transcribe, extractedQuestion?.question || transcribe, ragContext.combinedContext);
+          const ragPrompt = buildRAGPrompt(bg, transcribe, extractedQuestion?.question || transcribe, ragContext.combinedContext, responseLanguage);
           
           let groqStream;
           try {
@@ -189,7 +189,7 @@ export async function POST(req: Request) {
           // RAG failed, fallback to AI knowledge
           console.log('⚠️ RAG failed, falling back to AI knowledge...');
           
-          const fallbackPrompt = buildPrompt(bg, transcribe);
+          const fallbackPrompt = buildPrompt(bg, transcribe, responseLanguage);
           
           let groqStream;
           try {
@@ -245,7 +245,7 @@ export async function POST(req: Request) {
         // Fallback to AI knowledge if RAG completely fails
         console.log('⚠️ RAG failed, falling back to AI knowledge...');
         
-        const fallbackPrompt = buildPrompt(bg, transcribe);
+        const fallbackPrompt = buildPrompt(bg, transcribe, responseLanguage);
         
         let groqStream;
         try {
@@ -298,7 +298,7 @@ export async function POST(req: Request) {
     }
   } else if (flag === FLAGS.SUMMERIZER) {
     // Handle summarizer flag
-    const prompt = buildSummerizerPrompt(transcribe);
+    const prompt = buildSummerizerPrompt(transcribe, responseLanguage);
     
     let groqStream;
     try {
