@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Pinecone } from '@pinecone-database/pinecone';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { generateTextEmbedding } from '@/lib/gemini-embeddings';
+import { documentVectorId } from '@/lib/document-vector-id';
 import { safePdfParse } from '../../../lib/safePdfParse';
 
 // Use Node.js runtime for PDF processing
@@ -9,15 +10,12 @@ export const runtime = 'nodejs';
 async function uploadPDFToVectorDB(file: File): Promise<boolean> {
   try {
     if (!process.env.PINECONE_API_KEY || !process.env.GEMINI_API_KEY) {
-      console.warn('Pinecone or Gemini API key not configured');
-      return false;
+      throw new Error('请配置 PINECONE_API_KEY 和 GEMINI_API_KEY，并重启服务。');
     }
 
     const pinecone = new Pinecone({
       apiKey: process.env.PINECONE_API_KEY,
     });
-
-    const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
     // Parse PDF
     const arrayBuffer = await file.arrayBuffer();
@@ -25,7 +23,8 @@ async function uploadPDFToVectorDB(file: File): Promise<boolean> {
     const pdfData = await safePdfParse(buffer);
 
     // Split into chunks
-    const chunks = splitIntoChunks(pdfData.text, 1000);
+    if (!pdfData.text?.trim()) throw new Error('PDF 中没有可提取的文字，扫描版 PDF 需要先进行 OCR。');
+    const chunks = splitIntoChunks(pdfData.text, 1500);
     
     // Generate embeddings and store
     const indexName = process.env.PINECONE_INDEX_NAME || 'interview-docs';
@@ -34,20 +33,11 @@ async function uploadPDFToVectorDB(file: File): Promise<boolean> {
 
     console.log('🧮 Generating Gemini embeddings...');
     for (let i = 0; i < chunks.length; i++) {
-      // Generate embedding using Gemini
-      const model = gemini.getGenerativeModel({ 
-        model: 'text-embedding-004'
-      });
-      
-      const result = await model.embedContent(chunks[i]);
-      
-      if (!result.embedding || !result.embedding.values) {
-        throw new Error(`Failed to generate embedding for chunk ${i}`);
-      }
+      const values = await generateTextEmbedding(chunks[i]);
 
       vectors.push({
-        id: `${file.name}-chunk-${i}`,
-        values: result.embedding.values,
+        id: documentVectorId(file.name, i),
+        values,
         metadata: {
           content: chunks[i],
           filename: file.name,
@@ -59,20 +49,23 @@ async function uploadPDFToVectorDB(file: File): Promise<boolean> {
       });
     }
 
-    await index.upsert(vectors);
+    for (let offset = 0; offset < vectors.length; offset += 100) {
+      await index.upsert(vectors.slice(offset, offset + 100));
+    }
     return true;
   } catch (error) {
     console.error('Error uploading PDF:', error);
-    return false;
+    throw error;
   }
 }
 
 function splitIntoChunks(text: string, chunkSize: number): string[] {
-  const words = text.split(' ');
+  const characters = Array.from(text);
   const chunks: string[] = [];
   
-  for (let i = 0; i < words.length; i += chunkSize) {
-    chunks.push(words.slice(i, i + chunkSize).join(' '));
+  for (let i = 0; i < characters.length; i += chunkSize) {
+    const chunk = characters.slice(i, i + chunkSize).join('').trim();
+    if (chunk) chunks.push(chunk);
   }
   
   return chunks;
@@ -137,7 +130,15 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error("PDF upload error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    const message = error instanceof Error ? error.message : '';
+    const safeMessage = /^(Gemini |请配置|无法连接 Gemini|PDF 中)/.test(message)
+      ? message
+      : /index|dimension|not found/i.test(message)
+        ? 'Pinecone 索引不存在或维度不匹配，请检查 interview-docs 索引是否已创建，维度应为 768。'
+        : /pdf|password|encrypt|invalid|format/i.test(message)
+          ? 'PDF 解析失败，请检查文件是否损坏或加密，或重新导出 PDF 后上传。'
+          : 'PDF 入库失败，请查看服务端日志，检查 Pinecone Key、索引及网络连接。';
+    return NextResponse.json({ error: safeMessage }, { status: 500 });
   }
 }
 

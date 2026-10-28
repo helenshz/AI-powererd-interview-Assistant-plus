@@ -1,6 +1,8 @@
 import { Pinecone } from '@pinecone-database/pinecone';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { safePdfParse } from '../safePdfParse';
+import { generateTextEmbedding } from '../gemini-embeddings';
+import { documentVectorId } from '../document-vector-id';
 
 export interface PDFDocument {
   id: string;
@@ -146,7 +148,7 @@ class PineconeService {
           
           const embedding = await this.generateEmbedding(cleanContent);
           vectors.push({
-            id: `${file.name}-chunk-${i}`,
+            id: documentVectorId(file.name, i),
             values: embedding,
             metadata: {
               content: cleanContent,
@@ -287,9 +289,9 @@ class PineconeService {
         score: match.score || 0,
         metadata: match.metadata,
         source: `PDF: ${match.metadata?.filename || 'Unknown'}`,
-        page: typeof match.metadata?.page === 'number' ? match.metadata.page : 1,
-        startPage: typeof match.metadata?.startPage === 'number' ? match.metadata.startPage : 1,
-        endPage: typeof match.metadata?.endPage === 'number' ? match.metadata.endPage : 1
+        page: typeof match.metadata?.page === 'number' ? match.metadata.page : undefined,
+        startPage: typeof match.metadata?.startPage === 'number' ? match.metadata.startPage : undefined,
+        endPage: typeof match.metadata?.endPage === 'number' ? match.metadata.endPage : undefined
       })) || [];
       
       console.log(`✅ Search completed: ${results.length} results found`);
@@ -368,19 +370,7 @@ class PineconeService {
         throw new Error('Text too short for meaningful embedding');
       }
       
-      // Use Gemini's text embedding model
-      const model = this.gemini.getGenerativeModel({ 
-        model: 'text-embedding-004' // Gemini's latest embedding model
-      });
-
-      const result = await model.embedContent(processedText);
-      
-      if (!result.embedding || !result.embedding.values) {
-        throw new Error('Invalid embedding response from Gemini');
-      }
-
-      console.log(`✅ Generated embedding with ${result.embedding.values.length} dimensions`);
-      return result.embedding.values;
+      return await generateTextEmbedding(processedText);
       
     } catch (error) {
       console.error('❌ Error generating Gemini embedding:', error);
