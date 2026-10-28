@@ -5,14 +5,21 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { transcriptionManager } from "@/lib/transcriptionManager";
 import type { InterviewLanguage } from "@/lib/types";
+import { LANGUAGE_OPTIONS } from "@/lib/types";
+import type { TranslationLanguage } from "@/lib/transcript-translation-queue";
 
 interface RecorderTranscriberProps {
   addTextinTranscription: (text: string, speaker?: "user" | "system" | "external") => void;
   language: InterviewLanguage;
   onLanguageChange: (language: InterviewLanguage) => void;
+  translationLanguage: TranslationLanguage;
+  onTranslationLanguageChange: (language: TranslationLanguage) => void;
+  answerLanguage: InterviewLanguage;
+  onAnswerLanguageChange: (language: InterviewLanguage) => void;
 }
 
-export default function RecorderTranscriber({ addTextinTranscription, language, onLanguageChange }: RecorderTranscriberProps) {
+export default function RecorderTranscriber({ addTextinTranscription, language, onLanguageChange,
+  translationLanguage, onTranslationLanguageChange, answerLanguage, onAnswerLanguageChange }: RecorderTranscriberProps) {
   const [source, setSource] = useState("system");
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [connecting, setConnecting] = useState(false);
@@ -44,7 +51,7 @@ export default function RecorderTranscriber({ addTextinTranscription, language, 
         : await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
       if (!captured.getAudioTracks().length) {
         captured.getTracks().forEach(track => track.stop());
-        throw new Error("没有共享音频。请重新选择浏览器标签页并勾选“共享标签页音频”。");
+        throw new Error("No shared audio. Select a browser tab and enable tab audio.");
       }
       streamRef.current = captured;
       setStream(captured);
@@ -52,7 +59,7 @@ export default function RecorderTranscriber({ addTextinTranscription, language, 
       transcriptionManager.reset();
     } catch (cause) {
       setConnecting(false);
-      setError(cause instanceof Error ? cause.message : "无法访问音频，请检查浏览器权限。");
+      setError(cause instanceof Error ? cause.message : "Cannot access audio. Check browser permissions.");
     }
   };
 
@@ -72,7 +79,7 @@ export default function RecorderTranscriber({ addTextinTranscription, language, 
       setError(message);
       disconnect();
     };
-    const timeout = setTimeout(() => fail("连接转写服务超时，请检查网络和 Deepgram Key 后重试。"), 20000);
+    const timeout = setTimeout(() => fail("Transcription connection timed out. Check the network and Deepgram key."), 20000);
     const onEnded = () => disconnect();
     stream.getTracks().forEach(track => track.addEventListener("ended", onEnded));
 
@@ -81,7 +88,7 @@ export default function RecorderTranscriber({ addTextinTranscription, language, 
         const response = await fetch("/api/deepgram", { cache: "no-store", signal: abortController.signal });
         const data = await response.json();
         if (cancelled) return;
-        if (!response.ok || !data.key) throw new Error(data.error || "无法获取 Deepgram 临时密钥。");
+        if (!response.ok || !data.key) throw new Error(data.error || "Cannot obtain a temporary Deepgram key.");
         connection = createClient(data.key).listen.live({
           model: "nova-2", language, interim_results: true, smart_format: true,
           punctuate: true, diarize: false, utterance_end_ms: 1000, vad_events: true, endpointing: 300,
@@ -96,13 +103,13 @@ export default function RecorderTranscriber({ addTextinTranscription, language, 
             recorder.ondataavailable = event => {
               if (!cancelled && event.data.size > 0) live.send(event.data);
             };
-            recorder.onerror = () => fail("录音失败，请重新连接并检查音频权限。");
+            recorder.onerror = () => fail("Recording failed. Reconnect and check audio permissions.");
             recorder.start(250);
             setListening(true);
             setConnecting(false);
             keepAlive = setInterval(() => live.keepAlive(), 3000);
           } catch {
-            fail("浏览器无法录制此音频，请检查音频设备并重新连接。");
+            fail("The browser could not record this audio. Check the device and reconnect.");
           }
         });
         live.on(LiveTranscriptionEvents.Transcript, data => {
@@ -110,14 +117,14 @@ export default function RecorderTranscriber({ addTextinTranscription, language, 
           const text = data.channel?.alternatives?.[0]?.transcript?.trim();
           if (!text) return;
           setCaption(text);
-          if (data.is_final && transcriptionManager.shouldAddTranscript(text, true, "external")) {
+          if (data.is_final && transcriptionManager.shouldAddTranscript(text, true, "external", language)) {
             addTextRef.current(text, "external");
           }
         });
-        live.on(LiveTranscriptionEvents.Error, () => fail("Deepgram 连接失败，请检查 Key、余额及网络，然后重新连接。"));
-        live.on(LiveTranscriptionEvents.Close, () => fail("转写连接已断开，请重新连接。如反复出现，请检查 Deepgram 配置和网络。"));
+        live.on(LiveTranscriptionEvents.Error, () => fail("Deepgram connection failed. Check the key, balance, and network."));
+        live.on(LiveTranscriptionEvents.Close, () => fail("Transcription disconnected. Check Deepgram configuration and network, then reconnect."));
       } catch (cause) {
-        fail(cause instanceof Error ? cause.message : "无法连接转写服务。");
+        fail(cause instanceof Error ? cause.message : "Cannot connect to transcription.");
       }
     };
     void start();
@@ -144,12 +151,20 @@ export default function RecorderTranscriber({ addTextinTranscription, language, 
             <option value="microphone">Microphone (test yourself)</option>
           </select>
         </label>
-        <label className="flex items-center gap-2">Transcription / answer language
+        <label className="flex items-center gap-2">Transcription language
           <select className="border rounded p-2" value={language} disabled={!!stream || connecting} onChange={event => onLanguageChange(event.target.value as InterviewLanguage)}>
-            <option value="en">English</option>
-            <option value="ja">Japanese</option>
-            <option value="zh-CN">Chinese (Mandarin)</option>
-            <option value="de">German</option>
+            {LANGUAGE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </label>
+        <label className="flex items-center gap-2">Translation language
+          <select className="border rounded p-2" value={translationLanguage} onChange={event => onTranslationLanguageChange(event.target.value as TranslationLanguage)}>
+            <option value="off">Off</option>
+            {LANGUAGE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </label>
+        <label className="flex items-center gap-2">Answer language
+          <select className="border rounded p-2" value={answerLanguage} onChange={event => onAnswerLanguageChange(event.target.value as InterviewLanguage)}>
+            {LANGUAGE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </label>
       </div>
@@ -157,12 +172,13 @@ export default function RecorderTranscriber({ addTextinTranscription, language, 
         {stream ? "Disconnect" : connecting ? "Connecting..." : "Connect"}
       </Button>
       <p className="text-xs text-gray-600" role="status">
-        {connecting ? "正在连接转写服务…" : listening ? "转写服务已连接，等待所选音频中的语音…" : "未连接转写服务"}
+        {connecting ? "Connecting to transcription…" : listening ? "Transcription connected. Waiting for speech…" : "Transcription disconnected"}
       </p>
       <p className="text-xs text-gray-600">
-        {source === "system" ? "只转写共享标签页播放的声音，不采集你自己的麦克风。共享时请勾选音频。"
-          : "直接采集麦克风，无需打开 Meet。语音会发送至 Deepgram 进行转写。"}
+        {source === "system" ? "Captures shared-tab playback only. Enable tab audio when sharing; your microphone is not included."
+          : "Captures your microphone without a meeting. Audio is sent to Deepgram for transcription."}
       </p>
+      <p className="text-xs text-gray-500">Automatic translation uses your configured model API and may incur usage charges. Select Off to disable it.</p>
       {error && <p role="alert" className="text-sm text-red-700 border border-red-300 p-3">{error}</p>}
       {caption && <p className="text-sm border p-3" aria-live="polite">{caption}</p>}
       {!!stream?.getVideoTracks().length && (

@@ -3,6 +3,7 @@
  */
 
 import { audioSourceDetector } from './audioSourceDetector';
+import type { InterviewLanguage } from './types';
 
 export interface ChatMessage {
   id: string;
@@ -10,6 +11,7 @@ export interface ChatMessage {
   timestamp: string;
   speaker: 'user' | 'system' | 'external';
   isInterim?: boolean;
+  language?: InterviewLanguage;
 }
 
 export class TranscriptionManager {
@@ -26,7 +28,7 @@ export class TranscriptionManager {
    * @param speaker The speaker type (system, external, user)
    * @returns Whether this text should be added to the transcription
    */
-  shouldAddTranscript(text: string, isFinal: boolean = true, speaker: 'user' | 'system' | 'external' = 'external'): boolean {
+  shouldAddTranscript(text: string, isFinal: boolean = true, speaker: 'user' | 'system' | 'external' = 'external', language?: InterviewLanguage): boolean {
     if (!text || text.trim().length < this.MIN_TEXT_LENGTH) {
       return false;
     }
@@ -54,7 +56,7 @@ export class TranscriptionManager {
     this.lastProcessedTime = now;
 
     // Add to messages
-    this.addMessage(text, speaker, isFinal);
+    this.addMessage(text, speaker, isFinal, language);
 
     // Clean up old transcripts to prevent memory issues
     this.cleanupOldTranscripts();
@@ -65,13 +67,14 @@ export class TranscriptionManager {
   /**
    * Adds a message to the chat history
    */
-  addMessage(text: string, speaker: 'user' | 'system' | 'external' = 'external', isFinal: boolean = true): void {
+  addMessage(text: string, speaker: 'user' | 'system' | 'external' = 'external', isFinal: boolean = true, language?: InterviewLanguage): void {
     const message: ChatMessage = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       text: text.trim(),
       timestamp: new Date().toISOString(),
       speaker,
-      isInterim: !isFinal
+      isInterim: !isFinal,
+      language,
     };
 
     this.messages.push(message);

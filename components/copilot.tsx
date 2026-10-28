@@ -13,6 +13,8 @@ import { PDFModal } from "@/components/PDFModal";
 import { transcriptionManager, ChatMessage } from "@/lib/transcriptionManager";
 import { ChatTranscription } from "@/components/ChatTranscription";
 import { CompletionStreamParser, CompletionSnapshot } from "@/lib/completion-stream";
+import { useTranscriptTranslations } from "@/lib/use-transcript-translations";
+import type { TranslationLanguage } from "@/lib/transcript-translation-queue";
 
 interface CopilotProps {
   addInSavedData: (data: HistoryData) => void;
@@ -105,8 +107,11 @@ export function Copilot({ addInSavedData }: CopilotProps) {
   const [flag, setFlag] = useState<FLAGS>(FLAGS.COPILOT);
   const [bg, setBg] = useState<string>("");
   const [responseLanguage, setResponseLanguage] = useState<InterviewLanguage>("en");
+  const [transcriptionLanguage, setTranscriptionLanguage] = useState<InterviewLanguage>("en");
+  const [translationLanguage, setTranslationLanguage] = useState<TranslationLanguage>("zh-CN");
   const [lastAddedText, setLastAddedText] = useState<string>("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const { translations, retryTranslation } = useTranscriptTranslations(chatMessages, transcriptionLanguage, translationLanguage);
   const [showChatView, setShowChatView] = useState<boolean>(true);
   const [stealthMode, setStealthMode] = useState<boolean>(false); // Stealth mode state
   const [pdfModal, setPdfModal] = useState<{
@@ -338,8 +343,12 @@ export function Copilot({ addInSavedData }: CopilotProps) {
           <div className="grid gap-6 md:grid-cols-2">
           <div className="grid gap-1.5">
             <RecorderTranscriber
-              language={responseLanguage}
-              onLanguageChange={setResponseLanguage}
+              language={transcriptionLanguage}
+              onLanguageChange={setTranscriptionLanguage}
+              translationLanguage={translationLanguage}
+              onTranslationLanguageChange={setTranslationLanguage}
+              answerLanguage={responseLanguage}
+              onAnswerLanguageChange={setResponseLanguage}
               addTextinTranscription={addTextinTranscription}
             />
             
@@ -377,6 +386,9 @@ export function Copilot({ addInSavedData }: CopilotProps) {
             {showChatView ? (
               <div className="h-[300px]">
                 <ChatTranscription 
+                  translations={translations}
+                  translationLanguage={translationLanguage}
+                  onRetryTranslation={retryTranslation}
                   messages={chatMessages}
                   onClear={clearTranscriptionChange}
                   className="h-full"

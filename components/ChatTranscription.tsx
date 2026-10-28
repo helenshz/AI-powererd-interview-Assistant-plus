@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { User, Monitor, MessageCircle } from "lucide-react";
+import type { TranslationLanguage, TranslationState } from "@/lib/transcript-translation-queue";
 
 export interface ChatMessage {
   id: string;
@@ -17,9 +18,12 @@ interface ChatTranscriptionProps {
   messages: ChatMessage[];
   onClear: () => void;
   className?: string;
+  translations?: Record<string, TranslationState>;
+  translationLanguage?: TranslationLanguage;
+  onRetryTranslation?: (id: string) => void;
 }
 
-export function ChatTranscription({ messages, onClear, className }: ChatTranscriptionProps) {
+export function ChatTranscription({ messages, onClear, className, translations = {}, translationLanguage = 'off', onRetryTranslation }: ChatTranscriptionProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const formatTime = (timestamp: string) => {
@@ -148,6 +152,16 @@ export function ChatTranscription({ messages, onClear, className }: ChatTranscri
                       <span className="ml-1 text-gray-400">...</span>
                     )}
                   </div>
+                  {translations[message.id] && (
+                    <div className="mt-2 border-t border-blue-200 pt-1 text-xs leading-relaxed text-gray-600" aria-label="Translation" aria-live="polite" lang={translationLanguage === 'off' ? undefined : translationLanguage}>
+                      {translations[message.id].status === 'done' ? translations[message.id].text
+                        : translations[message.id].status === 'error' ? (
+                          <span className="text-red-700">Translation unavailable: {translations[message.id].error}
+                            <button type="button" className="ml-2 underline" onClick={() => onRetryTranslation?.(message.id)}>Retry translation</button>
+                          </span>
+                        ) : 'Translating…'}
+                    </div>
+                  )}
                 </div>
               </div>
             );

@@ -15,7 +15,8 @@ This fork builds on [Vijay Singh's original project](https://github.com/Vijaysin
 | Area | Improvements |
 | --- | --- |
 | Audio and Japanese support | Choose shared meeting-tab audio or microphone input. English, Japanese (`ja`), Mandarin Chinese, and German are available. |
-| Answer language | The page's **Transcription / answer language** selection controls both transcription and answers. Japanese uses standard Japanese writing. |
+| Language controls | **Transcription language**, **Translation language**, and **Answer language** are independent.|
+| Inline translation | Each finalized transcript receives a smaller translation below the original. Choose a target language or **Off**; requests use the configured chat provider. |
 | Document imports | Read PDF, Markdown (`.md` / `.markdown`), and TXT files, up to 10 MB. Text files do not need PDF conversion. |
 | Chat models | Groq, DeepSeek, and configurable OpenAI-compatible chat APIs; model-specific options and credentials are isolated by provider. |
 | Retrieval | Keep retrieved context when question extraction fails, prefer relevant original-language passages, and avoid invented personal details. |
@@ -182,11 +183,12 @@ Visit [http://localhost:3000](http://localhost:3000) to use the Copilot.
 
 ## Usage
 
-1. Select the audio source and **Transcription / answer language**. Choose **Japanese** for Japanese transcription and Japanese answers. Disconnect before changing the language, then reconnect.
+1. Select **Audio source** and **Transcription language**. Choose **Japanese** for Japanese speech recognition. Disconnect before changing transcription language, then reconnect. **Translation language** and **Answer language** can be set independently and changed while connected.
 2. Click **Connect**. For a meeting, select its browser tab and enable tab audio. Your own microphone is captured only in microphone mode; speaking alone in a Meet room does not necessarily create tab playback audio.
 3. Upload optional PDF, Markdown, or TXT notes through **Upload Document**. Existing indexed files remain stored in Pinecone across page refreshes, even if the current page's in-memory upload list is empty.
-4. Once text appears, select **AI Mode** and click **Process**, or press **Ctrl+Enter**. Transcription does not automatically submit a model request. **Summarizer** generates a summary instead.
-5. Review the answer and citations. Matching-language source passages take priority over translating other versions. Use **Text View** to enter or edit a question without audio, and **Save Response** to keep an answer in local browser history.
+4. Each finalized transcript is automatically translated beneath its original text in a smaller font. Translation defaults to Chinese (Mandarin); select another language or **Off**. Changing the translation language updates displayed translations; identical source and target languages skip the extra request. Each translation uses the configured model API and may incur usage charges. A translation failure leaves the original visible with a retry control.
+5. Select **Answer language**, then **AI Mode**, and click **Process**, or press **Ctrl+Enter**. Interview answers require this explicit action; automatic translation does not answer questions or change the transcript used for answers. **Summarizer** generates a summary instead.
+6. Review the answer and citations. Matching-language source passages take priority over translating other versions. Use **Text View** to enter or edit a question without audio, and **Save Response** to keep an answer in local browser history.
 
 ---
 
