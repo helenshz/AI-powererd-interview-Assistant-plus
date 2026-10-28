@@ -1,5 +1,6 @@
 import genAI from "@/lib/gemini";
-import groq, { GROQ_MODEL } from "@/lib/groq";
+import groq, { GROQ_MODEL, GROQ_REASONING_OPTIONS, streamGroq } from "@/lib/groq";
+import { groqErrorResponse } from "@/lib/groq-errors";
 import { FLAGS } from "@/lib/types";
 import { buildPrompt, buildSummerizerPrompt, buildRAGPrompt, buildKnowledgeCheckPrompt } from "@/lib/utils";
 
@@ -16,6 +17,7 @@ export async function POST(req: Request) {
     let knowledgeCheck;
     try {
       knowledgeCheck = await groq.chat.completions.create({
+        ...GROQ_REASONING_OPTIONS,
         messages: [
           {
             role: 'user',
@@ -24,7 +26,7 @@ export async function POST(req: Request) {
         ],
         model: GROQ_MODEL,
         temperature: 0.3, // Lower temperature for decision making
-        max_tokens: 200,
+        max_completion_tokens: 1024,
         stream: false, // Non-streaming for quick decision
       });
     } catch (error) {
@@ -47,29 +49,11 @@ export async function POST(req: Request) {
       
       let groqStream;
       try {
-        groqStream = await groq.chat.completions.create({
-          messages: [
-            {
-              role: 'user',
-              content: immediatePrompt
-            }
-          ],
-          model: GROQ_MODEL,
-          temperature: 0.7,
-          max_tokens: 4000,
-          stream: true,
-        });
+        groqStream = await streamGroq(immediatePrompt);
       } catch (error) {
         console.error('Groq API error:', error);
         
-        return new Response(JSON.stringify({
-          error: 'AI service is currently unavailable. Please try again in a moment.',
-        }), {
-          status: 503,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
+        return groqErrorResponse(error);
       }
 
       const encoder = new TextEncoder();
@@ -79,7 +63,7 @@ export async function POST(req: Request) {
             let hasContent = false;
             
             for await (const chunk of groqStream) {
-              const content = chunk.choices[0]?.delta?.content;
+              const content = chunk;
               if (content) {
                 hasContent = true;
                 controller.enqueue(encoder.encode(content));
@@ -139,29 +123,11 @@ export async function POST(req: Request) {
           
           let groqStream;
           try {
-            groqStream = await groq.chat.completions.create({
-              messages: [
-                {
-                  role: 'user',
-                  content: ragPrompt
-                }
-              ],
-              model: GROQ_MODEL,
-              temperature: 0.7,
-              max_tokens: 4000,
-              stream: true,
-            });
+            groqStream = await streamGroq(ragPrompt);
           } catch (error) {
             console.error('Groq API error:', error);
             
-            return new Response(JSON.stringify({
-              error: 'AI service is currently unavailable. Please try again in a moment.',
-            }), {
-              status: 503,
-              headers: {
-                "Content-Type": "application/json",
-              },
-            });
+            return groqErrorResponse(error);
           }
 
           const encoder = new TextEncoder();
@@ -171,7 +137,7 @@ export async function POST(req: Request) {
                 let hasContent = false;
                 
                 for await (const chunk of groqStream) {
-                  const content = chunk.choices[0]?.delta?.content;
+                  const content = chunk;
                   if (content) {
                     hasContent = true;
                     controller.enqueue(encoder.encode(content));
@@ -223,29 +189,11 @@ export async function POST(req: Request) {
           
           let groqStream;
           try {
-            groqStream = await groq.chat.completions.create({
-              messages: [
-                {
-                  role: 'user',
-                  content: fallbackPrompt
-                }
-              ],
-              model: GROQ_MODEL,
-              temperature: 0.7,
-              max_tokens: 4000,
-              stream: true,
-            });
+            groqStream = await streamGroq(fallbackPrompt);
           } catch (error) {
             console.error('Groq API error:', error);
             
-            return new Response(JSON.stringify({
-              error: 'AI service is currently unavailable. Please try again in a moment.',
-            }), {
-              status: 503,
-              headers: {
-                "Content-Type": "application/json",
-              },
-            });
+            return groqErrorResponse(error);
           }
 
           const encoder = new TextEncoder();
@@ -255,7 +203,7 @@ export async function POST(req: Request) {
                 let hasContent = false;
                 
                 for await (const chunk of groqStream) {
-                  const content = chunk.choices[0]?.delta?.content;
+                  const content = chunk;
                   if (content) {
                     hasContent = true;
                     controller.enqueue(encoder.encode(content));
@@ -297,29 +245,11 @@ export async function POST(req: Request) {
         
         let groqStream;
         try {
-          groqStream = await groq.chat.completions.create({
-            messages: [
-              {
-                role: 'user',
-                content: fallbackPrompt
-              }
-            ],
-            model: GROQ_MODEL,
-            temperature: 0.7,
-            max_tokens: 4000,
-            stream: true,
-          });
+          groqStream = await streamGroq(fallbackPrompt);
         } catch (error) {
           console.error('Groq API error:', error);
           
-          return new Response(JSON.stringify({
-            error: 'AI service is currently unavailable. Please try again in a moment.',
-          }), {
-            status: 503,
-            headers: {
-              "Content-Type": "application/json",
-            },
-          });
+          return groqErrorResponse(error);
         }
 
         const encoder = new TextEncoder();
@@ -329,7 +259,7 @@ export async function POST(req: Request) {
               let hasContent = false;
               
               for await (const chunk of groqStream) {
-                const content = chunk.choices[0]?.delta?.content;
+                const content = chunk;
                 if (content) {
                   hasContent = true;
                   controller.enqueue(encoder.encode(content));
@@ -368,29 +298,11 @@ export async function POST(req: Request) {
     
     let groqStream;
     try {
-      groqStream = await groq.chat.completions.create({
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        model: GROQ_MODEL,
-        temperature: 0.7,
-        max_tokens: 4000,
-        stream: true,
-      });
+      groqStream = await streamGroq(prompt);
     } catch (error) {
       console.error('Groq API error:', error);
       
-      return new Response(JSON.stringify({
-        error: 'AI service is currently unavailable. Please try again in a moment.',
-      }), {
-        status: 503,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      return groqErrorResponse(error);
     }
 
     const encoder = new TextEncoder();
@@ -400,7 +312,7 @@ export async function POST(req: Request) {
           let hasContent = false;
           
           for await (const chunk of groqStream) {
-            const content = chunk.choices[0]?.delta?.content;
+            const content = chunk;
             if (content) {
               hasContent = true;
               controller.enqueue(encoder.encode(content));

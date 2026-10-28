@@ -49,20 +49,8 @@ function useGeminiCompletion(body: any) {
       });
 
       if (!response.ok) {
-        // Handle error responses (like 503 for overloaded API)
-        if (response.status === 503) {
-          const errorData = await response.json();
-          setCompletion("⚠️ AI service is temporarily unavailable. Please try again in a moment.");
-          
-          if (errorData.extractedQuestion) {
-            setExtractedQuestion(errorData.extractedQuestion);
-          }
-          if (errorData.citations && errorData.citations.length > 0) {
-            setCitations(errorData.citations);
-          }
-          return;
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || `问答请求失败（HTTP ${response.status}），请稍后重试。`);
       }
 
       const reader = response.body?.getReader();
