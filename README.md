@@ -10,24 +10,27 @@
 
 ## What's new in this fork
 
-This fork builds on [Vijay Singh's original project](https://github.com/Vijaysingh1621/AI-powererd-interview-Assistant). The original author acknowledgments and project background are retained below.
+This fork builds on [Vijay Singh's original project](https://github.com/Vijaysingh1621/AI-powererd-interview-Assistant).
 
-| Area | Improvements |
+**Original project:** real-time transcription with microphone and shared-tab audio input, English, Mandarin Chinese, and German speech recognition, PDF-based RAG, AI Mode, Summarizer, citations, screen sharing, and response history were already present upstream.
+
+**This fork:** the table below lists additions and fixes made on top of those existing features. The original project introduction, screenshots, and author acknowledgments are retained below.
+
+| Feature | Improvements |
 | --- | --- |
-| Audio and Japanese support | Choose shared meeting-tab audio or microphone input. English, Japanese (`ja`), Mandarin Chinese, and German are available. |
-| Language controls | **Transcription language**, **Translation language**, and **Answer language** are independent.|
+| Japanese speech recognition | Adds selectable Japanese (`ja`) alongside the existing English, Mandarin Chinese, and German options. |
+| Language controls | Adds independent **Transcription language**, **Translation language**, and **Answer language** selections. |
 | Inline translation | Each finalized transcript receives a smaller translation below the original. Choose a target language or **Off**; requests use the configured chat provider. |
-| Document imports | Read PDF, Markdown (`.md` / `.markdown`), and TXT files, up to 10 MB. Text files do not need PDF conversion. |
-| Chat models | Groq, DeepSeek, and configurable OpenAI-compatible chat APIs; model-specific options and credentials are isolated by provider. |
-| Retrieval | Keep retrieved context when question extraction fails, prefer relevant original-language passages, and avoid invented personal details. |
+| Text-document imports | Extends the existing PDF knowledge base with Markdown (`.md` / `.markdown`) and TXT imports, up to 10 MB. |
+| Additional chat providers | Adds DeepSeek and configurable OpenAI-compatible endpoints while retaining Groq support. |
+| Retrieval improvements | Fixes discarded retrieval results, prioritizes relevant original-language passages, and strengthens grounding in uploaded notes. |
 | Reliability | Updated embeddings and model defaults, Unicode document IDs, empty-answer retries, accurate API errors, and a fix for duplicated streamed answers. |
-| Private inputs | Real keys stay in ignored `.env.local`; personal PDFs and `.local-data/` backups are excluded from commits. |
 
 See [document import details](docs/document-import.md) and [model provider configuration](docs/model-providers.md). The setup below applies to this fork. Uploads are manual; files are not watched for changes automatically.
 
 ---
 
-## Overview
+## Original project overview
 
 *AI Interview Copilot* is a next-generation, real-time AI-powered assistant designed to streamline and enhance the technical interview process. Built for interviewers, hiring managers, and technical recruiters, this tool leverages state-of-the-art speech-to-text, large language models (LLMs), and retrieval-augmented generation (RAG) to provide instant, context-aware support during live interviews. The Copilot transcribes interviewer audio, analyzes candidate responses, and delivers intelligent, actionable suggestions, summaries, and follow-up questions—all in a clean, professional, and minimal UI.
 
@@ -40,6 +43,8 @@ See [document import details](docs/document-import.md) and [model provider confi
 ---
 
 ## Features
+
+This section describes the application's core workflow. Existing capabilities such as transcription, PDF RAG, AI Mode, and Summarizer are credited to the upstream project; fork-specific additions and fixes are identified in the table above.
 
 ### 🎙 Real-Time Audio Transcription
 - *Deepgram Integration:* Captures and transcribes interviewer/system audio in real time using advanced speech recognition.
@@ -68,9 +73,9 @@ See [document import details](docs/document-import.md) and [model provider confi
 ---
 
 
-## 🚀 BlitzQ - Production SaaS Built on This Prototype
+## 🚀 BlitzQ - Original Author's Related Project
 
-Building on this open-source prototype, I created *BlitzQ* - a comprehensive SaaS platform that takes interview preparation to the next level.
+The original author created *BlitzQ* based on this open-source prototype. This section is retained from the upstream project description; it describes a separate product, not features added by this fork.
 
 ### *Ace Every Interview with BlitzQ*
 Your intelligent AI-powered interview copilot that provides real-time answers, helps you practice, and boosts your confidence. Ace every interview and land your dream job.
@@ -190,6 +195,8 @@ Visit [http://localhost:3000](http://localhost:3000) to use the Copilot.
 5. Select **Answer language**, then **AI Mode**, and click **Process**, or press **Ctrl+Enter**. Interview answers require this explicit action; automatic translation does not answer questions or change the transcript used for answers. **Summarizer** generates a summary instead.
 6. Review the answer and citations. Matching-language source passages take priority over translating other versions. Use **Text View** to enter or edit a question without audio, and **Save Response** to keep an answer in local browser history.
 
+For a public demo, [fictional example notes](examples/demo-notes.txt) are provided. Set **Transcription language** to **Japanese**, **Translation language** to **Chinese (Mandarin)**, and **Answer language** to **English**. Upload the TXT file and ask one of its Japanese questions; click **Process** to generate an English answer from the notes.
+
 ---
 
 ## Advanced Capabilities
@@ -233,7 +240,7 @@ Visit [http://localhost:3000](http://localhost:3000) to use the Copilot.
 
 ## License
 
-MIT License. See [LICENSE](./LICENSE) for details.
+For licensing information, refer to the [original repository](https://github.com/Vijaysingh1621/AI-powererd-interview-Assistant).
 
 ---
 

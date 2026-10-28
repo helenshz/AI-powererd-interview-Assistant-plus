@@ -1,0 +1,16 @@
+DEMO NOTES — FICTIONAL PROFILE
+All names and background details below are invented for a public software demonstration.
+
+SELF-INTRODUCTION
+Japanese question:
+簡単に自己紹介をしてください。
+
+English answer:
+My name is Alex. I am a software engineering student interested in building useful AI tools. In a university project, I connected several small services into a working application and helped test the complete workflow. I enjoy understanding how different parts of a system work together, and I would like to keep learning through practical teamwork.
+
+TEAMWORK
+Japanese question:
+チームのメンバーとどのように協力しますか。
+
+English answer:
+I start by confirming the shared goal and my responsibilities. I share progress regularly, explain blockers early, and ask for feedback before making major changes. When a task crosses several parts of the system, I coordinate with the relevant teammates and test the complete workflow together.
