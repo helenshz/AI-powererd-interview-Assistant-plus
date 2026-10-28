@@ -28,6 +28,12 @@ yarn-error.log*
 # local env files
 .env
 .env*.local
+/.local-data/
+
+# Personal documents are local inputs, not source code. Existing tracked fixtures remain tracked.
+*.pdf
+/uploads/
+/personal-documents/
 
 # vercel
 .vercel

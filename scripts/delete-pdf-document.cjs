@@ -1,0 +1,41 @@
+// Delete only exact filename matches, with a local ignored backup before any remote mutation.
+const fs = require('node:fs');
+const path = require('node:path');
+const { Pinecone } = require('@pinecone-database/pinecone');
+const env = require('dotenv').parse(fs.readFileSync('.env.local'));
+async function main() {
+  const filename = process.argv[2];
+  if (!filename || !filename.toLowerCase().endsWith('.pdf')) throw new Error('An exact PDF filename is required');
+  const indexName = env.PINECONE_INDEX_NAME || 'interview-docs';
+  const index = new Pinecone({ apiKey: env.PINECONE_API_KEY }).index(indexName);
+  const records = [];
+  let paginationToken;
+  do {
+    const page = await index.listPaginated({ limit: 100, ...(paginationToken ? { paginationToken } : {}) });
+    const ids = (page.vectors || []).map(vector => vector.id).filter(Boolean);
+    if (ids.length) {
+      const fetched = await index.fetch(ids);
+      records.push(...Object.values(fetched.records || {}).filter(record => record.metadata?.filename === filename));
+    }
+    paginationToken = page.pagination?.next;
+  } while (paginationToken);
+  if (!records.length) throw new Error('No exact filename match; nothing deleted');
+  const backupDir = path.resolve('.local-data', 'pinecone-backups');
+  fs.mkdirSync(backupDir, { recursive: true });
+  const backupPath = path.join(backupDir, `${Date.now()}-document.json`);
+  fs.writeFileSync(backupPath, JSON.stringify({ indexName, namespace: '', filename, records }), { flag: 'wx' });
+  const ids = records.map(record => record.id);
+  for (let offset = 0; offset < ids.length; offset += 100) {
+    await index.deleteMany(ids.slice(offset, offset + 100));
+  }
+  // Exact-ID reads verify the requested records, without touching any other document.
+  const remaining = [];
+  for (let offset = 0; offset < ids.length; offset += 100) {
+    const fetched = await index.fetch(ids.slice(offset, offset + 100));
+    remaining.push(...Object.keys(fetched.records || {}));
+  }
+  console.log(JSON.stringify({ filename, deletedChunks: ids.length, remainingChunks: remaining.length,
+    backup: path.relative(process.cwd(), backupPath) }));
+  if (remaining.length) process.exitCode = 1;
+}
+main().catch(error => { console.error('Document cleanup failed:', error.name); process.exitCode = 1; });
