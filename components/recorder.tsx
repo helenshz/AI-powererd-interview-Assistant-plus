@@ -138,18 +138,18 @@ export default function RecorderTranscriber({ addTextinTranscription, language, 
   return (
     <div className="w-full relative space-y-3">
       <div className="flex flex-wrap gap-3 text-sm">
-        <label className="flex items-center gap-2">音频来源
+        <label className="flex items-center gap-2">Audio source
           <select className="border rounded p-2" value={source} disabled={!!stream || connecting} onChange={event => setSource(event.target.value)}>
-            <option value="system">会议 / 标签页声音</option>
-            <option value="microphone">麦克风（自己说话测试）</option>
+            <option value="system">Meeting / tab audio</option>
+            <option value="microphone">Microphone (test yourself)</option>
           </select>
         </label>
-        <label className="flex items-center gap-2">识别 / 回答语言
+        <label className="flex items-center gap-2">Transcription / answer language
           <select className="border rounded p-2" value={language} disabled={!!stream || connecting} onChange={event => onLanguageChange(event.target.value as InterviewLanguage)}>
             <option value="en">English</option>
-            <option value="ja">日本語（日语）</option>
-            <option value="zh-CN">中文（普通话）</option>
-            <option value="de">Deutsch</option>
+            <option value="ja">Japanese</option>
+            <option value="zh-CN">Chinese (Mandarin)</option>
+            <option value="de">German</option>
           </select>
         </label>
       </div>

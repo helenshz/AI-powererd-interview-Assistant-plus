@@ -15,7 +15,7 @@ This fork builds on [Vijay Singh's original project](https://github.com/Vijaysin
 | Area | Improvements |
 | --- | --- |
 | Audio and Japanese support | Choose shared meeting-tab audio or microphone input. English, Japanese (`ja`), Mandarin Chinese, and German are available. |
-| Answer language | The page's **识别 / 回答语言** selection controls both transcription and answers. Japanese uses standard Japanese writing. |
+| Answer language | The page's **Transcription / answer language** selection controls both transcription and answers. Japanese uses standard Japanese writing. |
 | Document imports | Read PDF, Markdown (`.md` / `.markdown`), and TXT files, up to 10 MB. Text files do not need PDF conversion. |
 | Chat models | Groq, DeepSeek, and configurable OpenAI-compatible chat APIs; model-specific options and credentials are isolated by provider. |
 | Retrieval | Keep retrieved context when question extraction fails, prefer relevant original-language passages, and avoid invented personal details. |
@@ -182,7 +182,7 @@ Visit [http://localhost:3000](http://localhost:3000) to use the Copilot.
 
 ## Usage
 
-1. Select the audio source and **识别 / 回答语言**. Choose **日本語（日语）** for Japanese transcription and Japanese answers. Disconnect before changing the language, then reconnect.
+1. Select the audio source and **Transcription / answer language**. Choose **Japanese** for Japanese transcription and Japanese answers. Disconnect before changing the language, then reconnect.
 2. Click **Connect**. For a meeting, select its browser tab and enable tab audio. Your own microphone is captured only in microphone mode; speaking alone in a Meet room does not necessarily create tab playback audio.
 3. Upload optional PDF, Markdown, or TXT notes through **Upload Document**. Existing indexed files remain stored in Pinecone across page refreshes, even if the current page's in-memory upload list is empty.
 4. Once text appears, select **AI Mode** and click **Process**, or press **Ctrl+Enter**. Transcription does not automatically submit a model request. **Summarizer** generates a summary instead.
