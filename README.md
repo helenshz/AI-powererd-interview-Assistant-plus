@@ -1,5 +1,14 @@
 # AI Interview Copilot
 
+## Fork: Japanese transcription and answers
+
+This fork supports Japanese (`ja`) alongside English, Mandarin Chinese, and German. Select **日本語（日语）** in **识别 / 回答语言**, then connect the audio source. The selection controls both speech recognition and the answer language. Japanese answers use standard Japanese writing.
+
+For a microphone test, select the microphone source. For a meeting, share the meeting tab with audio enabled. Disconnect before changing the language, then reconnect. Click **Process** or press **Ctrl+Enter** to generate an answer.
+
+Japanese recognition was included in the audio-source/transcription improvements; this section records that capability explicitly. Personal documents, API keys, and local backups are excluded from commits.
+
+
 <p align="center">
   <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status" />
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="License" />
