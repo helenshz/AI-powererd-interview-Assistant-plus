@@ -39,6 +39,18 @@ Use the provider's API root, including `/v1` when required, rather than the full
 
 Changing the chat provider does not replace Deepgram speech recognition or Gemini/Pinecone document indexing. Keep those keys if you use those features. Keep `.env.local` private; only `.env.example` is committed.
 
+## Diagnose the selected configuration
+
+`.env.local` is loaded by the local Next.js server; it does not mean the model runs locally. Restart `npm run dev` (PowerShell: `npm.cmd run dev`) after editing it. The old `MODEL=gemini-1.5-flash` field is not used to select this chat client.
+
+```powershell
+node scripts/check-model-connection.cjs
+```
+
+This reads the selected provider's model list and sends a short synthetic prompt. It prints model availability, status codes, and whether an answer was received, without printing credentials or personal documents. The short chat request uses the provider's normal API billing.
+
+For DeepSeek, HTTP 402 means insufficient API account balance. Model listing can still succeed even when generation fails for this reason. Check the provider's billing console or explicitly switch `LLM_PROVIDER` back to `groq` if your Groq key is configured; restart the server afterwards. The application does not silently switch providers. See the [official error-code reference](https://api-docs.deepseek.com/quick_start/error_codes/).
+
 Offline verification (no network or real credentials):
 
 ```powershell

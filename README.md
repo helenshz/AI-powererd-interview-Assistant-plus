@@ -1,14 +1,5 @@
 # AI Interview Copilot
 
-## Fork: Japanese transcription and answers
-
-This fork supports Japanese (`ja`) alongside English, Mandarin Chinese, and German. Select **日本語（日语）** in **识别 / 回答语言**, then connect the audio source. The selection controls both speech recognition and the answer language. Japanese answers use standard Japanese writing.
-
-For a microphone test, select the microphone source. For a meeting, share the meeting tab with audio enabled. Disconnect before changing the language, then reconnect. Click **Process** or press **Ctrl+Enter** to generate an answer.
-
-Japanese recognition was included in the audio-source/transcription improvements; this section records that capability explicitly. Personal documents, API keys, and local backups are excluded from commits.
-
-
 <p align="center">
   <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status" />
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="License" />
@@ -16,6 +7,22 @@ Japanese recognition was included in the audio-source/transcription improvements
   <img src="https://img.shields.io/badge/AI-Groq%20LLM-orange" alt="Groq LLM" />
   <img src="https://img.shields.io/badge/Transcription-Deepgram-blueviolet" alt="Deepgram" />
 </p>
+
+## What's new in this fork
+
+This fork builds on [Vijay Singh's original project](https://github.com/Vijaysingh1621/AI-powererd-interview-Assistant). The original author acknowledgments and project background are retained below.
+
+| Area | Improvements |
+| --- | --- |
+| Audio and Japanese support | Choose shared meeting-tab audio or microphone input. English, Japanese (`ja`), Mandarin Chinese, and German are available. |
+| Answer language | The page's **识别 / 回答语言** selection controls both transcription and answers. Japanese uses standard Japanese writing. |
+| Document imports | Read PDF, Markdown (`.md` / `.markdown`), and TXT files, up to 10 MB. Text files do not need PDF conversion. |
+| Chat models | Groq, DeepSeek, and configurable OpenAI-compatible chat APIs; model-specific options and credentials are isolated by provider. |
+| Retrieval | Keep retrieved context when question extraction fails, prefer relevant original-language passages, and avoid invented personal details. |
+| Reliability | Updated embeddings and model defaults, Unicode document IDs, empty-answer retries, accurate API errors, and a fix for duplicated streamed answers. |
+| Private inputs | Real keys stay in ignored `.env.local`; personal PDFs and `.local-data/` backups are excluded from commits. |
+
+See [document import details](docs/document-import.md) and [model provider configuration](docs/model-providers.md). The setup below applies to this fork. Uploads are manual; files are not watched for changes automatically.
 
 ---
 
@@ -36,11 +43,11 @@ Japanese recognition was included in the audio-source/transcription improvements
 ### 🎙 Real-Time Audio Transcription
 - *Deepgram Integration:* Captures and transcribes interviewer/system audio in real time using advanced speech recognition.
 - *Screen Sharing Preview:* Visual feedback for active screen/audio capture, with robust error handling and fallback logic.
-- *Speaker Labeling:* Only "Interviewer" audio is transcribed and displayed, ensuring clarity and focus.
+- *Audio Sources:* Select meeting-tab playback or a microphone test; transcripts are displayed in the interview panel.
 
 ### 🤖 AI Reasoning & Response
-- *Groq LLM Integration:* Utilizes Groq's ultra-fast, high-accuracy LLMs (Llama 3) for instant reasoning, explanations, and follow-up questions.
-- *Intelligent Routing:* The system first checks if the LLM can answer from its own knowledge. If not, it automatically triggers RAG agents to fetch relevant context from documents, web, or company knowledge bases.
+- *Configurable Chat Models:* Use Groq (default), DeepSeek, or an OpenAI-compatible chat service for answers and question extraction.
+- *Document Context:* When Gemini and Pinecone are configured, search uploaded documents before answering. Without a document configuration, the model can answer from general knowledge and supplied background.
 - *Progressive Enhancement:* Users receive immediate AI responses, with additional sources and citations appended as soon as RAG completes, minimizing wait time.
 
 ### 📚 Retrieval-Augmented Generation (RAG)
@@ -55,7 +62,7 @@ Japanese recognition was included in the audio-source/transcription improvements
 ### 🛡 Robustness & Security
 - *Error Handling:* Graceful fallbacks for audio/video issues, API errors, and permission denials.
 - *Environment Variables:* All API keys and sensitive configs are managed via .env files.
-- *No Candidate Audio:* Only interviewer/system audio is captured, ensuring privacy and compliance.
+- *Explicit Audio Selection:* Meeting-tab mode captures tab playback; microphone mode captures the selected microphone after browser permission.
 
 ---
 
@@ -131,44 +138,55 @@ flowchart TD
 ## Getting Started
 
 ### 1. Clone the Repository
-bash
-git clone https://github.com/Vijaysingh1621/AI-powererd-interview-Assistant.git
-cd ai-interview-copilot
-
-
+```bash
+git clone https://github.com/helenshz/AI-powererd-interview-Assistant.git
+cd AI-powererd-interview-Assistant
+```
 ### 2. Install Dependencies
-bash
+```bash
 npm install
-# or
-yarn install
+```
 
-
+In Windows PowerShell, use `npm.cmd install` if execution policy blocks `npm.ps1`.
 ### 3. Configure Environment Variables
-Copy .env.example to .env and fill in your API keys:
-bash
-cp .env.example .env
+Copy the public template to a private local configuration, then fill in the keys you need:
 
-- GROQ_API_KEY (Groq LLM)
-- NEXT_PUBLIC_DEEPGRAM_API_KEY (Deepgram)
-- PINECONE_API_KEY, TAVILY_API_KEY, etc. (for RAG)
+```bash
+cp .env.example .env.local
+```
+
+PowerShell equivalent: `Copy-Item .env.example .env.local`. `.env.example` intentionally has empty key fields. Never put real credentials in it or commit `.env.local`.
+
+| Feature | Required configuration |
+| --- | --- |
+| Groq chat (default) | `LLM_PROVIDER=groq`, `GROQ_API_KEY`; optional `GROQ_MODEL` |
+| DeepSeek chat | `LLM_PROVIDER=deepseek`, `DEEPSEEK_API_KEY`; optional `LLM_MODEL` (defaults to `deepseek-flash`) |
+| Other compatible chat | `LLM_PROVIDER=openai-compatible`, `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` |
+| Speech transcription | `DEEPGRAM_API_KEY` with permissions to access its project and issue temporary transcription keys |
+| PDF/Markdown/TXT knowledge base | `GEMINI_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME=interview-docs` |
+| Optional web search | `TAVILY_API_KEY` |
+
+To create the 768-dimensional knowledge-base index, run `npm run setup-pinecone` (PowerShell: `npm.cmd run setup-pinecone`). Uploaded text uses `gemini-embedding-001` with 768 output dimensions.
+
+`.env.local` means a local configuration file, not a local AI model. The application reads it on the server and sends requests to the selected cloud provider. The legacy `MODEL` field does not select the chat provider; use `LLM_PROVIDER` and the provider's model field. Restart the development server after changing configuration.
 
 ### 4. Run the App
-bash
+```bash
 npm run dev
-# or
-yarn dev
+```
 
+PowerShell: `npm.cmd run dev`.
 Visit [http://localhost:3000](http://localhost:3000) to use the Copilot.
 
 ---
 
 ## Usage
 
-1. *Start Screen Sharing:* Click "Connect" to begin capturing interviewer audio and screen.
-2. *Live Transcription:* The Copilot will transcribe all interviewer speech in real time.
-3. *Ask Questions:* Type or speak interview questions; the Copilot will provide instant AI-powered suggestions and follow-ups.
-4. *Review Sources:* If the AI needs more context, sources and citations will appear after the initial response.
-5. *Export/Save:* Download or copy chat transcripts for record-keeping or feedback.
+1. Select the audio source and **识别 / 回答语言**. Choose **日本語（日语）** for Japanese transcription and Japanese answers. Disconnect before changing the language, then reconnect.
+2. Click **Connect**. For a meeting, select its browser tab and enable tab audio. Your own microphone is captured only in microphone mode; speaking alone in a Meet room does not necessarily create tab playback audio.
+3. Upload optional PDF, Markdown, or TXT notes through **Upload Document**. Existing indexed files remain stored in Pinecone across page refreshes, even if the current page's in-memory upload list is empty.
+4. Once text appears, select **AI Mode** and click **Process**, or press **Ctrl+Enter**. Transcription does not automatically submit a model request. **Summarizer** generates a summary instead.
+5. Review the answer and citations. Matching-language source passages take priority over translating other versions. Use **Text View** to enter or edit a question without audio, and **Save Response** to keep an answer in local browser history.
 
 ---
 
@@ -176,7 +194,7 @@ Visit [http://localhost:3000](http://localhost:3000) to use the Copilot.
 
 - *Intelligent LLM Routing:* The Copilot uses a knowledge-check prompt to decide if the LLM can answer directly. If not, it triggers RAG for deeper context.
 - *Streaming Responses:* All AI and RAG responses are streamed for minimal latency.
-- *Customizable Models:* Easily switch between Groq, Gemini, or OpenAI by updating environment variables and config files.
+- *Customizable Models:* Switch between Groq, DeepSeek, and compatible chat services using `.env.local`. Transcription and document embeddings have separate service configurations.
 - *Extensible RAG Agents:* Add new document or web search agents by extending the RAG orchestrator.
 
 ---
@@ -204,7 +222,8 @@ Visit [http://localhost:3000](http://localhost:3000) to use the Copilot.
 ## Troubleshooting
 
 - *Audio/Screen Not Captured:* Ensure browser permissions are granted for screen and audio.
-- *API Errors:* Check your .env file for correct API keys and quotas.
+- *API Errors:* Check `.env.local`, restart the server, and confirm the selected provider and model. HTTP 401 means authentication failed; HTTP 402 from DeepSeek means insufficient API balance; HTTP 429 means a rate or usage limit. A working model list does not guarantee enough balance for generation.
+- *DeepSeek Connection Check:* Run `node scripts/check-model-connection.cjs` to test the provider selected in `.env.local`. It reads model availability and sends one short synthetic prompt, printing only diagnostic status. This uses the provider's API billing; no transcripts, notes, or credentials are printed.
 - *Slow Responses:* RAG-based answers may take longer; LLM-only answers are near-instant.
 - *UI Issues:* Clear browser cache or try a different browser.
 
