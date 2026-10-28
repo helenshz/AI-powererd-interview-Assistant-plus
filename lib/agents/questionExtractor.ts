@@ -1,4 +1,4 @@
-import groq, { GROQ_MODEL, GROQ_REASONING_OPTIONS } from '../groq';
+import groq, { GROQ_MODEL, GROQ_REASONING_OPTIONS, modelTokenOptions } from '../groq';
 
 export interface ExtractedQuestion {
   question: string;
@@ -45,7 +45,7 @@ If no clear question is found, return:
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
       temperature: 0,
-      max_completion_tokens: 2048,
+      ...modelTokenOptions(2048),
     });
     const response = result.choices[0]?.message?.content || '{}';
     

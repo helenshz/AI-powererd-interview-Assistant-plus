@@ -1,13 +1,12 @@
-import genAI from "@/lib/gemini";
-import groq, { GROQ_MODEL, GROQ_REASONING_OPTIONS, streamGroq } from "@/lib/groq";
+import groq, { GROQ_MODEL, GROQ_REASONING_OPTIONS, CHAT_CONFIG_ERROR, modelTokenOptions, streamGroq } from "@/lib/groq";
 import { groqErrorResponse } from "@/lib/groq-errors";
 import { FLAGS } from "@/lib/types";
 import { buildPrompt, buildSummerizerPrompt, buildRAGPrompt, buildKnowledgeCheckPrompt } from "@/lib/utils";
 
 export const runtime = "nodejs";
-const MODEL = process.env.MODEL || "gemini-1.5-flash";
 
 export async function POST(req: Request) {
+  if (CHAT_CONFIG_ERROR) return groqErrorResponse({ code: 'configuration_error' });
   const { bg, flag, prompt: transcribe, responseLanguage = 'en' } = await req.json();
 
   if (flag === FLAGS.COPILOT) {
@@ -28,7 +27,7 @@ export async function POST(req: Request) {
         ],
         model: GROQ_MODEL,
         temperature: 0.3, // Lower temperature for decision making
-        max_completion_tokens: 1024,
+        ...modelTokenOptions(1024),
         stream: false, // Non-streaming for quick decision
       });
     } catch (error) {
