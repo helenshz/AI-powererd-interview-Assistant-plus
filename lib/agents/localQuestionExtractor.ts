@@ -2,6 +2,8 @@
  * Local fallback question extractor when Gemini API is unavailable
  */
 
+import { isSelfIntroduction } from '../interview-query';
+
 export interface LocalExtractedQuestion {
   question: string;
   context: string;
@@ -9,6 +11,9 @@ export interface LocalExtractedQuestion {
 }
 
 export function extractQuestionLocally(transcript: string): LocalExtractedQuestion | null {
+  if (isSelfIntroduction(transcript)) {
+    return { question: 'Please briefly introduce yourself (自我介绍 / 自己紹介).', context: transcript, confidence: 0.95 };
+  }
   const text = transcript.toLowerCase().trim();
   
   // Enhanced question patterns

@@ -16,7 +16,9 @@ export async function POST(req: Request) {
     
     let knowledgeCheck;
     try {
-      knowledgeCheck = await groq.chat.completions.create({
+      knowledgeCheck = process.env.PINECONE_API_KEY && process.env.GEMINI_API_KEY
+        ? { choices: [{ message: { content: 'NEED_CONTEXT: Search configured interview notes' } }] }
+        : await groq.chat.completions.create({
         ...GROQ_REASONING_OPTIONS,
         messages: [
           {
@@ -36,7 +38,9 @@ export async function POST(req: Request) {
     }
 
     const knowledgeResponse = knowledgeCheck.choices[0]?.message?.content || '';
-    const hasKnowledge = knowledgeResponse.startsWith('KNOWN:');
+    // Configured personal documents must be searched even for familiar questions.
+    const hasKnowledge = knowledgeResponse.startsWith('KNOWN:') &&
+      !(process.env.PINECONE_API_KEY && process.env.GEMINI_API_KEY);
     
     console.log('🧠 Knowledge check result:', hasKnowledge ? 'HAS_KNOWLEDGE' : 'NEEDS_CONTEXT');
     console.log('📝 Response preview:', knowledgeResponse.substring(0, 100) + '...');
@@ -116,10 +120,10 @@ export async function POST(req: Request) {
         console.log(`   Combined context length: ${ragContext.combinedContext.length}`);
         console.log(`   Citations: ${ragContext.citations.length}`);
         
-        if (ragData.searchPerformed && extractedQuestion) {
+        if (ragData.searchPerformed && ragContext.combinedContext?.trim()) {
           console.log('📚 Using RAG context for response...');
           
-          const ragPrompt = buildRAGPrompt(bg, transcribe, extractedQuestion.question, ragContext.combinedContext);
+          const ragPrompt = buildRAGPrompt(bg, transcribe, extractedQuestion?.question || transcribe, ragContext.combinedContext);
           
           let groqStream;
           try {

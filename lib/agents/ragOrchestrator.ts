@@ -3,6 +3,7 @@ import { extractQuestionLocally, generateSearchQuery } from './localQuestionExtr
 import { pineconeService, SearchResult } from './pineconeService';
 import { webSearchAgent, WebSearchResult } from './simpleWebSearchAgent';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { isSelfIntroduction, pdfSearchQuery, introductionRelevance } from '../interview-query';
 
 export interface RAGContext {
   pdfResults: SearchResult[];
@@ -59,12 +60,13 @@ class RAGOrchestrator {
       // Step 1: Try to extract question from transcript
       let extractedQuestion: ExtractedQuestion | null = null;
       try {
-        extractedQuestion = await extractQuestionFromTranscript(transcript);
+        const local = extractQuestionLocally(transcript);
+        extractedQuestion = local && local.confidence >= 0.9 ? local : await extractQuestionFromTranscript(transcript);
         if (extractedQuestion && extractedQuestion.confidence >= 0.4) {
           console.log('✅ Question extracted:', extractedQuestion.question);
         } else {
           console.log('⚠️ Low confidence question extraction, using fallback');
-          extractedQuestion = null;
+          extractedQuestion = local && local.confidence >= 0.5 ? local : null;
         }
       } catch (error) {
         console.warn('⚠️ Question extraction failed (quota/API issue), trying local extraction:', (error as Error).message || 'Unknown error');
@@ -95,7 +97,7 @@ class RAGOrchestrator {
       }
 
       // If we still don't have a meaningful query, skip RAG
-      if (!searchQuery || searchQuery.length < 10) {
+      if (!searchQuery || !searchQuery.trim()) {
         console.log('❌ No meaningful search query found');
         return {
           extractedQuestion: null,
@@ -109,6 +111,9 @@ class RAGOrchestrator {
         };
       }
 
+      // A usable search query remains a question even when the extraction service fails.
+      extractedQuestion ??= { question: transcript.trim(), context: transcript, confidence: 0.4 };
+
       // Step 2: Search PDF documents (parallel) - with error handling
       console.log('🔍 Starting PDF search with query:', searchQuery);
       const pdfSearchPromise = this.searchPDFs(searchQuery)
@@ -119,7 +124,9 @@ class RAGOrchestrator {
       
       // Step 3: Search web (parallel) - with error handling
       console.log('🔍 Starting web search...');
-      const webSearchPromise = this.searchWeb(searchQuery, background)
+      const webSearchPromise = (isSelfIntroduction(searchQuery)
+        ? Promise.resolve({ results: [] as WebSearchResult[] })
+        : this.searchWeb(searchQuery, background))
         .catch(error => {
           console.error('Web search error:', error);
           return { results: [] };
@@ -178,9 +185,13 @@ class RAGOrchestrator {
   private async searchPDFs(question: string): Promise<SearchResult[]> {
     try {
       console.log('🔍 Searching PDFs with question:', question);
-      const results = await pineconeService.searchSimilarContent(question, 3);
+      const personal = isSelfIntroduction(question);
+      const results = await pineconeService.searchSimilarContent(pdfSearchQuery(question), personal ? 20 : 6);
+      if (personal) {
+        results.sort((a, b) => (b.score + introductionRelevance(b.content)) - (a.score + introductionRelevance(a.content)));
+      }
       console.log(`📄 PDF search completed: ${results.length} results found`);
-      return results;
+      return results.slice(0, 4);
     } catch (error) {
       console.error('Error searching PDFs:', error);
       
@@ -275,8 +286,8 @@ class RAGOrchestrator {
     
     // Prioritize PDF results over web results for better accuracy
     const allResults = [
-      ...pdfResults.map(r => ({ ...r, type: 'pdf', priority: 1 })),
-      ...webResults.map(r => ({ ...r, content: r.snippet, type: 'web', priority: 2 }))
+      ...pdfResults.map((r, rank) => ({ ...r, type: 'pdf', priority: 1, rank })),
+      ...webResults.map((r, rank) => ({ ...r, content: r.snippet, type: 'web', priority: 2, rank }))
     ];
 
     console.log(`🔗 Total combined results: ${allResults.length}`);
@@ -284,7 +295,7 @@ class RAGOrchestrator {
     // Sort by priority first (PDF > Web), then by relevance score
     allResults.sort((a, b) => {
       if (a.priority !== b.priority) return a.priority - b.priority;
-      return b.score - a.score;
+      return a.rank - b.rank;
     });
 
     // Take top 4 results (prioritize PDFs)
@@ -296,7 +307,7 @@ class RAGOrchestrator {
     const citations: Citation[] = [];
 
     topResults.forEach((result, index) => {
-      const content = result.content.substring(0, 500); // Increased length for better context
+      const content = result.content.substring(0, 2000);
       const sourceType = result.type === 'pdf' ? '[PDF]' : '[WEB]';
       const isPdf = result.type === 'pdf';
       

@@ -26,18 +26,12 @@ class SimpleWebSearchAgent {
     console.log('🔍 Query:', query);
     
     try {
-      if (!this.tavilyApiKey) {
+      if (!this.tavilyApiKey || this.tavilyApiKey.startsWith('your-')) {
         console.warn('⚠️ TAVILY_API_KEY not configured - returning fallback');
         return {
-          results: [{
-            title: `Search: ${query}`,
-            link: 'https://example.com',
-            snippet: `Fallback result for: ${query}. Please configure TAVILY_API_KEY.`,
-            source: 'Web: Fallback',
-            score: 0.5
-          }],
+          results: [],
           searchQuery: query,
-          totalResults: 1
+          totalResults: 0
         };
       }
 
@@ -76,13 +70,7 @@ class SimpleWebSearchAgent {
     } catch (error) {
       console.error('❌ Web search error:', error);
       return {
-        results: [{
-          title: `Error searching: ${query}`,
-          link: '',
-          snippet: `Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          source: 'Web: Error',
-          score: 0.1
-        }],
+        results: [],
         searchQuery: query,
         totalResults: 0
       };
