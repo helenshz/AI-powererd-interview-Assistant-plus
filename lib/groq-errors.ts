@@ -12,6 +12,9 @@ export function groqErrorResponse(error: unknown): Response {
     message = "模型未生成回答，自动重试后仍为空。请缩短问题或转写内容后重新生成。";
   } else if (upstreamStatus === 401) {
     message = "模型 API Key 无效或已过期，请检查所选服务的密钥，然后重启服务。";
+  } else if (upstreamStatus === 402) {
+    status = 402;
+    message = "模型服务账户余额不足（HTTP 402）。请到所选服务的平台检查 API 余额，或切换到已配置的其他模型服务。";
   } else if (upstreamStatus === 403) {
     message = "模型服务拒绝访问，请检查账户及模型的访问权限。";
   } else if (upstreamStatus === 404 || code === "model_not_found" || code === "model_decommissioned") {
@@ -19,7 +22,7 @@ export function groqErrorResponse(error: unknown): Response {
   } else if (upstreamStatus === 429) {
     status = 429;
     message = "已达到模型服务的请求频率或用量限制，请稍后重试，并查看控制台用量。";
-  } else if (upstreamStatus === 400 || upstreamStatus === 413) {
+  } else if (upstreamStatus === 400 || upstreamStatus === 413 || upstreamStatus === 422) {
     status = 400;
     message = "模型无法处理此请求，请缩短转写内容，并检查模型配置。";
   } else if (upstreamStatus && upstreamStatus >= 500) {

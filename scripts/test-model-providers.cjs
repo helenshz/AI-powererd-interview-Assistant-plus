@@ -42,5 +42,15 @@ async function check(env, expected) {
   await check({ LLM_PROVIDER: 'deepseek', GROQ_API_KEY: 'never-send-this' }, { error: true });
   await check({ LLM_PROVIDER: 'openai-compatible', LLM_API_KEY: 'fake' }, { error: true });
   await check({ LLM_PROVIDER: 'unknown', LLM_API_KEY: 'fake' }, { error: true });
+  const errors = { exports: {}, Response };
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/groq-errors.ts', 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS },
+  }).outputText, errors);
+  const insufficientBalance = errors.exports.groqErrorResponse({ status: 402, code: 'invalid_request_error' });
+  assert.equal(insufficientBalance.status, 402);
+  assert.ok((await insufficientBalance.json()).error.includes('余额不足'));
+  const invalidParameters = errors.exports.groqErrorResponse({ status: 422 });
+  assert.equal(invalidParameters.status, 400);
+  assert.ok(!(await invalidParameters.json()).error.includes('网络'));
   console.log('PASS: Groq, DeepSeek, compatible endpoints, token parameters, missing configuration, and provider key isolation');
 })().catch(error => { console.error(error); process.exitCode = 1; });
