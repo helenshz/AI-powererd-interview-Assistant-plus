@@ -12,6 +12,7 @@ import { PDFManager } from "@/components/PDFManager";
 import { PDFModal } from "@/components/PDFModal";
 import { transcriptionManager, ChatMessage } from "@/lib/transcriptionManager";
 import { ChatTranscription } from "@/components/ChatTranscription";
+import { CompletionStreamParser, CompletionSnapshot } from "@/lib/completion-stream";
 
 interface CopilotProps {
   addInSavedData: (data: HistoryData) => void;
@@ -60,54 +61,21 @@ function useGeminiCompletion(body: any) {
         throw new Error("No response body");
       }
 
-      let result = "";
-      let buffer = "";
-      let isInSources = false;
+      const parser = new CompletionStreamParser();
+      const displaySnapshot = (snapshot: CompletionSnapshot) => {
+        setCompletion(snapshot.completion);
+        if (snapshot.citations) setCitations(snapshot.citations);
+        if (snapshot.extractedQuestion) setExtractedQuestion(snapshot.extractedQuestion);
+      };
       
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         
-        const chunk = decoder.decode(value, { stream: true });
-        buffer += chunk;
-        
-        // Check for sources separator
-        if (buffer.includes('---SOURCES---')) {
-          const parts = buffer.split('---SOURCES---');
-          const beforeSources = parts[0];
-          const afterSources = parts[1] || '';
-          
-          // Process content before sources
-          if (beforeSources && !isInSources) {
-            result += beforeSources;
-            setCompletion(result);
-          }
-          
-          // Process sources
-          isInSources = true;
-          if (afterSources.trim()) {
-            try {
-              const parsed = JSON.parse(afterSources.trim());
-              if (parsed.type === 'citations') {
-                setCitations(parsed.citations);
-                if (parsed.extractedQuestion) {
-                  setExtractedQuestion(parsed.extractedQuestion);
-                }
-              }
-            } catch (e) {
-              // Continue processing
-            }
-          }
-          buffer = '';
-          continue;
-        }
-        
-        if (!isInSources) {
-          // Process normal response text
-          result += chunk;
-          setCompletion(result);
-        }
+        displaySnapshot(parser.push(decoder.decode(value, { stream: true })));
       }
+      parser.push(decoder.decode());
+      displaySnapshot(parser.finish());
     } catch (err) {
       setError(err instanceof Error ? err : new Error("Unknown error"));
     } finally {
