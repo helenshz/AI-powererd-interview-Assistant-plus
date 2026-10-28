@@ -1,399 +1,177 @@
 "use client";
 
-import {
-  CreateProjectKeyResponse,
-  LiveClient,
-  LiveTranscriptionEvents,
-  createClient,
-} from "@deepgram/sdk";
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useQueue } from "@uidotdev/usehooks";
-import { MicIcon } from "@/components/ui/icon";
+import { createClient, LiveTranscriptionEvents, LiveClient } from "@deepgram/sdk";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { MicOffIcon } from "lucide-react";
 import { transcriptionManager } from "@/lib/transcriptionManager";
 
 interface RecorderTranscriberProps {
-  addTextinTranscription: (text: string, speaker?: 'user' | 'system' | 'external') => void;
+  addTextinTranscription: (text: string, speaker?: "user" | "system" | "external") => void;
 }
 
-export default function RecorderTranscriber({
-  addTextinTranscription,
-}: RecorderTranscriberProps) {
-  const isRendered = useRef(false);
-  const { add, remove, first, size, queue } = useQueue<any>([]);
-  const [apiKey, setApiKey] = useState<CreateProjectKeyResponse | null>();
-  const [connection, setConnection] = useState<LiveClient | null>();
-  const [isListening, setListening] = useState(false);
-  const [isLoadingKey, setLoadingKey] = useState(true);
-  const [isLoading, setLoading] = useState(true);
-  const [isProcessing, setProcessing] = useState(false);
-  const [micOpen, setMicOpen] = useState(false);
-  const [microphone, setRecorderTranscriber] = useState<MediaRecorder | null>();
-  const [userMedia, setUserMedia] = useState<MediaStream | null>();
-  const [microphoneStream, setMicrophoneStream] = useState<MediaStream | null>();
-  const [systemAudioStream, setSystemAudioStream] = useState<MediaStream | null>();
-  const [screenVideoStream, setScreenVideoStream] = useState<MediaStream | null>();
-  const [isMicEnabled, setIsMicEnabled] = useState(false);
-  const [isPreviewMinimized, setIsPreviewMinimized] = useState(false);
-  const [videoLoaded, setVideoLoaded] = useState(false);
+export default function RecorderTranscriber({ addTextinTranscription }: RecorderTranscriberProps) {
+  const [language, setLanguage] = useState("en");
+  const [source, setSource] = useState("system");
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [error, setError] = useState("");
+  const [caption, setCaption] = useState("");
+  const [minimized, setMinimized] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const addTextRef = useRef(addTextinTranscription);
+  addTextRef.current = addTextinTranscription;
 
-  const [caption, setCaption] = useState<string | null>();
-  const [lastFinalTranscript, setLastFinalTranscript] = useState<string>("");
-  const [currentInterimTranscript, setCurrentInterimTranscript] = useState<string>("");
-  const [currentAudioSource, setCurrentAudioSource] = useState<'microphone' | 'system' | 'mixed'>('mixed');
+  const disconnect = useCallback(() => {
+    streamRef.current?.getTracks().forEach(track => track.stop());
+    streamRef.current = null;
+    setStream(null);
+    setListening(false);
+    setConnecting(false);
+    setCaption("");
+    transcriptionManager.reset();
+  }, []);
 
-  // Effect to handle video stream updates
-  useEffect(() => {
-    if (screenVideoStream && videoRef.current) {
-      console.log("Setting video source:", screenVideoStream);
-      setVideoLoaded(false); // Reset loading state
-      videoRef.current.srcObject = screenVideoStream;
-      videoRef.current.play().catch((error) => {
-        console.error("Video play error in effect:", error);
-        setVideoLoaded(false);
-      });
+  const connect = async () => {
+    setError("");
+    setConnecting(true);
+    try {
+      const captured = source === "microphone"
+        ? await navigator.mediaDevices.getUserMedia({ audio: true })
+        : await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      if (!captured.getAudioTracks().length) {
+        captured.getTracks().forEach(track => track.stop());
+        throw new Error("没有共享音频。请重新选择浏览器标签页并勾选“共享标签页音频”。");
+      }
+      streamRef.current = captured;
+      setStream(captured);
+      setCaption("");
+      transcriptionManager.reset();
+    } catch (cause) {
+      setConnecting(false);
+      setError(cause instanceof Error ? cause.message : "无法访问音频，请检查浏览器权限。");
     }
-  }, [screenVideoStream]);
+  };
 
-  const toggleRecorderTranscriber = useCallback(async () => {
-    if (microphone && (userMedia || microphoneStream)) {
-      // Stop all recording
-      microphone.stop();
-      setRecorderTranscriber(null);
-      
-      if (microphoneStream) {
-        microphoneStream.getTracks().forEach(track => track.stop());
-        setMicrophoneStream(null);
-      }
-      if (systemAudioStream) {
-        systemAudioStream.getTracks().forEach(track => track.stop());
-        setSystemAudioStream(null);
-      }
-      if (screenVideoStream) {
-        screenVideoStream.getTracks().forEach(track => track.stop());
-        setScreenVideoStream(null);
-      }
-      if (userMedia) {
-        userMedia.getTracks().forEach(track => track.stop());
-        setUserMedia(null);
-      }
-      
-      // Clear video preview
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
-      setVideoLoaded(false);
-    } else {
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.srcObject = stream;
+  }, [stream, minimized]);
+
+  useEffect(() => {
+    if (!stream) return;
+    let cancelled = false;
+    let connection: LiveClient | undefined;
+    let recorder: MediaRecorder | undefined;
+    let keepAlive: ReturnType<typeof setInterval> | undefined;
+    const abortController = new AbortController();
+    const fail = (message: string) => {
+      if (cancelled) return;
+      setError(message);
+      disconnect();
+    };
+    const timeout = setTimeout(() => fail("连接转写服务超时，请检查网络和 Deepgram Key 后重试。"), 20000);
+    const onEnded = () => disconnect();
+    stream.getTracks().forEach(track => track.addEventListener("ended", onEnded));
+
+    const start = async () => {
       try {
-        // Get screen sharing with both video and audio
-        const displayMedia = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          },
-          audio: true,
+        const response = await fetch("/api/deepgram", { cache: "no-store", signal: abortController.signal });
+        const data = await response.json();
+        if (cancelled) return;
+        if (!response.ok || !data.key) throw new Error(data.error || "无法获取 Deepgram 临时密钥。");
+        connection = createClient(data.key).listen.live({
+          model: "nova-2", language, interim_results: true, smart_format: true,
+          punctuate: true, diarize: false, utterance_end_ms: 1000, vad_events: true, endpointing: 300,
         });
-
-        console.log("Display media tracks:", displayMedia.getTracks());
-        console.log("Video tracks:", displayMedia.getVideoTracks());
-        console.log("Audio tracks:", displayMedia.getAudioTracks());
-
-        // Extract video stream for preview
-        const videoTracks = displayMedia.getVideoTracks();
-        if (videoTracks.length > 0) {
-          const videoStream = new MediaStream(videoTracks);
-          setScreenVideoStream(videoStream);
-          
-          // Display video preview
-          if (videoRef.current) {
-            videoRef.current.srcObject = videoStream;
-            console.log("Video element src set:", videoRef.current.srcObject);
-            videoRef.current.play().catch((error) => {
-              console.error("Video play error:", error);
-            });
+        const live = connection;
+        live.on(LiveTranscriptionEvents.Open, () => {
+          if (cancelled) return;
+          clearTimeout(timeout);
+          try {
+            // Start only after the websocket opens, preserving the recording's container header.
+            recorder = new MediaRecorder(new MediaStream(stream.getAudioTracks()));
+            recorder.ondataavailable = event => {
+              if (!cancelled && event.data.size > 0) live.send(event.data);
+            };
+            recorder.onerror = () => fail("录音失败，请重新连接并检查音频权限。");
+            recorder.start(250);
+            setListening(true);
+            setConnecting(false);
+            keepAlive = setInterval(() => live.keepAlive(), 3000);
+          } catch {
+            fail("浏览器无法录制此音频，请检查音频设备并重新连接。");
           }
-        } else {
-          console.warn("No video tracks available, trying original stream");
-          // Fallback: use the original display media stream
-          setScreenVideoStream(displayMedia);
-          if (videoRef.current) {
-            videoRef.current.srcObject = displayMedia;
-            videoRef.current.play().catch((error) => {
-              console.error("Fallback video play error:", error);
-            });
+        });
+        live.on(LiveTranscriptionEvents.Transcript, data => {
+          if (cancelled) return;
+          const text = data.channel?.alternatives?.[0]?.transcript?.trim();
+          if (!text) return;
+          setCaption(text);
+          if (data.is_final && transcriptionManager.shouldAddTranscript(text, true, "external")) {
+            addTextRef.current(text, "external");
           }
-        }
-
-        // Extract audio stream for transcription (interviewer only)
-        const audioOnlyStream = new MediaStream(displayMedia.getAudioTracks());
-        setSystemAudioStream(audioOnlyStream);
-
-        // Use only system audio (interviewer) for transcription
-        const hasSystemAudio = audioOnlyStream.getAudioTracks().length > 0;
-        
-        if (hasSystemAudio) {
-          setCurrentAudioSource('system');
-          setUserMedia(audioOnlyStream);
-
-          // Start recording the system audio stream only
-          const mic = new MediaRecorder(audioOnlyStream);
-          mic.start(500);
-
-          mic.onstart = () => {
-            setMicOpen(true);
-          };
-
-          mic.onstop = () => {
-            setMicOpen(false);
-            // Reset transcript state when stopping
-            setLastFinalTranscript("");
-            setCurrentInterimTranscript("");
-            setCaption(null);
-            transcriptionManager.reset(); // Reset the transcription manager
-          };
-
-          mic.ondataavailable = (e) => {
-            add(e.data);
-          };
-
-          setRecorderTranscriber(mic);
-        } else {
-          alert("No system audio detected. Please ensure your screen sharing includes audio.");
-        }
-      } catch (error) {
-        console.error("Error accessing media devices:", error);
-        alert("Please grant permission to access your microphone and screen audio.");
-      }
-    }
-  }, [add, microphone, userMedia, microphoneStream, systemAudioStream, screenVideoStream]);
-
-  useEffect(() => {
-    console.log({ apiKey });
-    if (apiKey) return;
-    // if (isRendered.current) return;
-    isRendered.current = true;
-    console.log("using main api key");
-    
-    // Use the main API key directly instead of creating temporary keys
-    setApiKey({ 
-      key: "99219f054eaf24d0d40c27ad48d6586c2333c45b",
-      api_key_id: "main-key",
-      scopes: ["usage:write"],
-      created: new Date().toISOString()
-    } as CreateProjectKeyResponse);
-    setLoadingKey(false);
-  }, [apiKey]);
-
-  useEffect(() => {
-    if (apiKey && "key" in apiKey) {
-      console.log("connecting to deepgram");
-      const deepgram = createClient(apiKey?.key ?? "");
-      const connection = deepgram.listen.live({
-        model: "nova-2",
-        interim_results: true,
-        smart_format: true,
-        punctuate: true,
-        diarize: false, // Disable speaker diarization to reduce processing
-        utterance_end_ms: 1000, // Wait 1 second of silence before finalizing
-        vad_events: true, // Voice activity detection
-        endpointing: 300, // Shorter endpointing for faster results
-      });
-
-      connection.on(LiveTranscriptionEvents.Open, () => {
-        console.log("connection established");
-        setListening(true);
-      });
-
-      connection.on(LiveTranscriptionEvents.Close, () => {
-        console.log("connection closed");
-        setListening(false);
-        setApiKey(null);
-        setConnection(null);
-      });
-
-      connection.on(LiveTranscriptionEvents.Transcript, (data) => {
-        const words = data.channel.alternatives[0].words;
-        const caption = words
-          .map((word: any) => word.punctuated_word ?? word.word)
-          .join(" ");
-        
-        if (caption && caption.trim().length > 0) {
-          const isFinal = data.is_final;
-          
-          // Always update the display caption for user feedback
-          setCaption(caption);
-          
-          // Always mark as 'external' (interviewer) since we're only capturing system audio
-          const detectedSpeaker = 'external';
-          
-          // Only add final transcripts to prevent duplicates
-          if (isFinal && transcriptionManager.shouldAddTranscript(caption, isFinal, detectedSpeaker)) {
-            console.log("Adding final transcript (Interviewer):", caption);
-            addTextinTranscription(caption, detectedSpeaker);
-            setLastFinalTranscript(caption);
-          } else if (!isFinal) {
-            // Update interim display
-            setCurrentInterimTranscript(caption);
-            console.log("Interim transcript (Interviewer):", caption);
-          }
-        }
-      });
-
-      setConnection(connection);
-      setLoading(false);
-    }
-  }, [apiKey]);
-
-  useEffect(() => {
-    const processQueue = async () => {
-      if (size > 0 && !isProcessing) {
-        setProcessing(true);
-
-        if (isListening) {
-          const blob = first;
-          connection?.send(blob);
-          remove();
-        }
-
-        const waiting = setTimeout(() => {
-          clearTimeout(waiting);
-          setProcessing(false);
-        }, 250);
+        });
+        live.on(LiveTranscriptionEvents.Error, () => fail("Deepgram 连接失败，请检查 Key、余额及网络，然后重新连接。"));
+        live.on(LiveTranscriptionEvents.Close, () => fail("转写连接已断开，请重新连接。如反复出现，请检查 Deepgram 配置和网络。"));
+      } catch (cause) {
+        fail(cause instanceof Error ? cause.message : "无法连接转写服务。");
       }
     };
-
-    processQueue();
-  }, [connection, queue, remove, first, size, isProcessing, isListening]);
-
-  if (isLoadingKey)
-    return (
-      <span className="w-full p-2 text-center text-xs bg-red-500 text-white">
-        Loading temporary API key...
-      </span>
-    );
-  if (isLoading)
-    return (
-      <span className="w-full p-2 text-center text-xs bg-red-500 text-white">
-        Loading the app...
-      </span>
-    );
+    void start();
+    return () => {
+      cancelled = true;
+      abortController.abort();
+      clearTimeout(timeout);
+      if (keepAlive) clearInterval(keepAlive);
+      stream.getTracks().forEach(track => {
+        track.removeEventListener("ended", onEnded);
+        track.stop();
+      });
+      if (recorder && recorder.state !== "inactive") recorder.stop();
+      connection?.requestClose();
+    };
+  }, [stream, language, disconnect]);
 
   return (
-    <div className="w-full relative">
-      <div className="grid mt-2 align-middle items-center gap-2">
-        <Button
-          className="h-9 bg-green-600 hover:bg-green-800 text-white"
-          size="sm"
-          variant="outline"
-          onClick={() => toggleRecorderTranscriber()}
-        >
-          {!micOpen ? (
-            <div className="flex items-center">
-              <MicIcon className="h-4 w-4 -translate-x-0.5 mr-2" />
-              Connect
-            </div>
-          ) : (
-            <div className="flex items-center">
-              <MicOffIcon className="h-4 w-4 -translate-x-0.5 mr-2" />
-              Disconnect
-            </div>
-          )}
-        </Button>
-        {micOpen && (
-          <div className="text-xs text-gray-600 mt-1">
-            🎙️ Interviewer audio transcription active
-          </div>
-        )}
-        
-        {/* Screen Sharing Preview */}
-        {screenVideoStream && (
-          <div className="mt-4 p-4 border border-gray-300 bg-gray-50 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                Screen Share Preview
-              </h3>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-green-700 bg-green-100 px-3 py-1 font-medium border border-green-200">
-                  ● Live
-                </span>
-                <button
-                  onClick={() => setIsPreviewMinimized(!isPreviewMinimized)}
-                  className="text-xs text-gray-600 hover:text-gray-800 px-3 py-1 border border-gray-200 bg-white hover:bg-gray-50 transition-colors"
-                >
-                  {isPreviewMinimized ? "Show" : "Hide"}
-                </button>
-              </div>
-            </div>
-            {!isPreviewMinimized && (
-              <>
-                <div className="relative">
-                  <video
-                    ref={videoRef}
-                    className="w-full h-64 bg-black border-2 border-gray-200 object-contain shadow-inner"
-                    muted
-                    playsInline
-                    autoPlay
-                    controls={false}
-                    onLoadedMetadata={() => {
-                      console.log("Video metadata loaded");
-                      setVideoLoaded(true);
-                    }}
-                    onError={(e) => {
-                      console.error("Video error:", e);
-                      setVideoLoaded(false);
-                    }}
-                    onCanPlay={() => console.log("Video can play")}
-                  />
-                  {!videoLoaded && screenVideoStream && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-75 text-white border-2 border-gray-200">
-                      <div className="text-center">
-                        <div className="animate-spin text-2xl mb-2">⏳</div>
-                        <p className="text-sm">Loading screen preview...</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs text-gray-600 mt-3 text-center bg-white px-3 py-2 border">
-                   Capturing interviewer screen and audio for AI analysis
-                  {videoLoaded && <span className="text-green-600 ml-2">✓ Video loaded</span>}
-                </p>
-              </>
-            )}
-            {isPreviewMinimized && (
-              <div className="text-center py-6">
-                <div className="text-2xl mb-2">📱</div>
-                <p className="text-xs text-gray-600">
-                  Preview minimized - Click &ldquo;Show&rdquo; to display screen sharing
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+    <div className="w-full relative space-y-3">
+      <div className="flex flex-wrap gap-3 text-sm">
+        <label className="flex items-center gap-2">音频来源
+          <select className="border rounded p-2" value={source} disabled={!!stream || connecting} onChange={event => setSource(event.target.value)}>
+            <option value="system">会议 / 标签页声音</option>
+            <option value="microphone">麦克风（自己说话测试）</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2">识别语言
+          <select className="border rounded p-2" value={language} disabled={!!stream || connecting} onChange={event => setLanguage(event.target.value)}>
+            <option value="en">English</option>
+            <option value="ja">日本語（日语）</option>
+            <option value="zh-CN">中文（普通话）</option>
+            <option value="de">Deutsch</option>
+          </select>
+        </label>
       </div>
-      <div
-        className="z-20 text-white flex shrink-0 grow-0 justify-around items-center 
-                  fixed bottom-0 right-5 rounded-xl mr-1 mb-5 lg:mr-5 lg:mb-5 xl:mr-10 xl:mb-10 gap-3 
-                  bg-gray-800 px-4 py-2 shadow-lg border border-gray-700"
-      >
-        <span className={cn("text-sm font-medium", {
-          "text-green-400": isListening,
-          "text-gray-400": !isListening
-        })}>
-          {isListening
-            ? "🎙️ Interviewer Connected"
-            : "⏳ Connecting..."}
-        </span>
-        <MicIcon
-          className={cn("h-4 w-4 transition-all duration-300", {
-            "fill-green-400 drop-shadow-glowBlue animate-pulse": isListening,
-            "fill-gray-400": !isListening,
-          })}
-        />
-      </div>
+      <Button className="w-full h-9 bg-green-600 hover:bg-green-800 text-white" disabled={connecting && !stream} onClick={stream ? disconnect : connect}>
+        {stream ? "Disconnect" : connecting ? "Connecting..." : "Connect"}
+      </Button>
+      <p className="text-xs text-gray-600" role="status">
+        {connecting ? "正在连接转写服务…" : listening ? "转写服务已连接，等待所选音频中的语音…" : "未连接转写服务"}
+      </p>
+      <p className="text-xs text-gray-600">
+        {source === "system" ? "只转写共享标签页播放的声音，不采集你自己的麦克风。共享时请勾选音频。"
+          : "直接采集麦克风，无需打开 Meet。语音会发送至 Deepgram 进行转写。"}
+      </p>
+      {error && <p role="alert" className="text-sm text-red-700 border border-red-300 p-3">{error}</p>}
+      {caption && <p className="text-sm border p-3" aria-live="polite">{caption}</p>}
+      {!!stream?.getVideoTracks().length && (
+        <div className="p-4 border border-gray-300 bg-gray-50">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold">Screen Share Preview</h3>
+            <button className="text-xs border px-3 py-1" onClick={() => setMinimized(!minimized)}>{minimized ? "Show" : "Hide"}</button>
+          </div>
+          {!minimized && <video ref={videoRef} className="w-full h-64 bg-black object-contain" muted playsInline autoPlay />}
+        </div>
+      )}
     </div>
   );
 }
